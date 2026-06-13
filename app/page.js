@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import PasswordGate from "@/components/PasswordGate";
 import { Section, Field, StatCard } from "@/components/ui";
 import {
@@ -33,10 +33,45 @@ export default function Page() {
   );
 }
 
+const STORAGE_KEY = "ammex_bid_state";
+
 function Calculator() {
   const [v, setV] = useState(DEFAULTS);
+  const [loaded, setLoaded] = useState(false);
   const [copied, setCopied] = useState(false);
   const set = (k) => (val) => setV((s) => ({ ...s, [k]: val }));
+
+  // Load the last saved entries on open (per-device, this browser only).
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      if (saved) setV({ ...DEFAULTS, ...JSON.parse(saved) });
+    } catch {}
+    setLoaded(true);
+  }, []);
+
+  // Save after every change so the last bid is remembered next time.
+  useEffect(() => {
+    if (!loaded) return; // don't overwrite saved data before it loads
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(v));
+    } catch {}
+  }, [v, loaded]);
+
+  // Clear: blank all Project Information, plus weight + productivity only.
+  // Everything else (crew, wage, burden, margins, market rate) stays put.
+  function clearForNewBid() {
+    setV((s) => ({
+      ...s,
+      projectName: "",
+      projectNumber: "",
+      client: "",
+      projectType: "Other",
+      notes: "",
+      weightLb: "",
+      outputLbPerMH: "",
+    }));
+  }
 
   // Guard against blank inputs while typing (treat "" as 0 for math).
   const i = useMemo(() => {
@@ -97,6 +132,14 @@ function Calculator() {
       <main className="mx-auto max-w-5xl px-4 pt-6">
         {/* 1 — PROJECT INFORMATION */}
         <Section index={1} title="Project Information" subtitle="For organization and reporting — does not affect the math.">
+          <div className="flex justify-end px-4 pt-4">
+            <button
+              onClick={clearForNewBid}
+              className="rounded-md border border-line bg-white px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-slate2 transition hover:border-rebar hover:text-rebar active:translate-y-px"
+            >
+              Clear for new bid
+            </button>
+          </div>
           <div className="grid grid-cols-1 gap-4 p-4 sm:grid-cols-2">
             <Field label="Project name" type="text" value={v.projectName} onChange={set("projectName")} placeholder="e.g. SR-101 Box Culvert" />
             <Field label="Project number" type="text" value={v.projectNumber} onChange={set("projectNumber")} placeholder="Optional" />
