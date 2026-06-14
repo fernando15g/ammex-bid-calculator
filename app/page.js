@@ -83,7 +83,15 @@ function Calculator() {
   const e = useMemo(() => computeEstimate(i), [i]);
   const flags = useMemo(() => computeFlags(i, e), [i, e]);
   const rev = useMemo(() => computeReverse(i, e), [i, e]);
-  const sens = useMemo(() => computeSensitivity(i), [i]);
+
+  // Sensitivity bid is locked to the recommended bid by default. Typing a number
+  // into the override field tests that price instead; clearing it returns to auto.
+  const [sensBidOverride, setSensBidOverride] = useState("");
+  const lockedCents =
+    sensBidOverride === "" || isNaN(Number(sensBidOverride))
+      ? e.bidCentsPerLb
+      : Number(sensBidOverride);
+  const sens = useMemo(() => computeSensitivity(i, lockedCents), [i, lockedCents]);
 
   const marginTone = e.grossMargin >= i.targetMarginPct ? "good" : "bad";
 
@@ -257,18 +265,33 @@ function Calculator() {
         </Section>
 
         {/* 6 — SENSITIVITY ANALYSIS */}
-        <Section index={6} title="Sensitivity Analysis" subtitle="How the bid moves as productivity changes. Your planned row is highlighted.">
+        <Section index={6} title="Sensitivity Analysis" subtitle="Holds your bid fixed and shows how margin moves as productivity changes. Your planned row is highlighted.">
+          <div className="flex flex-col gap-2 px-4 pt-4 sm:flex-row sm:items-end sm:justify-between">
+            <div className="w-full sm:max-w-[260px]">
+              <Field
+                label="Bid price to hold"
+                value={sensBidOverride}
+                onChange={(x) => setSensBidOverride(x === "" ? "" : x)}
+                step="any"
+                suffix="¢/lb"
+                placeholder={cents(e.bidCentsPerLb)}
+                hint={sensBidOverride === "" ? "Tracking recommended bid — type to test another price" : "Testing your price · clear the field to return to recommended"}
+              />
+            </div>
+            <div className="pb-1 text-[11px] text-slate2/80">
+              Holding <span className="tnum font-semibold text-gunmetal">{cents(lockedCents)}/lb</span>
+              {sensBidOverride === "" ? " (recommended)" : " (manual)"}
+            </div>
+          </div>
+
           <div className="overflow-x-auto p-1 sm:p-2">
-            <table className="tnum w-full min-w-[640px] border-collapse text-right text-sm">
+            <table className="tnum w-full min-w-[520px] border-collapse text-right text-sm">
               <thead>
                 <tr className="text-[10px] uppercase tracking-eyebrow text-slate2">
                   <th className="px-3 py-2 text-left font-semibold">lb/MH</th>
                   <th className="px-3 py-2 font-semibold">Field MH</th>
                   <th className="px-3 py-2 font-semibold">Total MH</th>
                   <th className="px-3 py-2 font-semibold">Total cost</th>
-                  <th className="px-3 py-2 font-semibold">Bid</th>
-                  <th className="px-3 py-2 font-semibold">¢/lb</th>
-                  <th className="px-3 py-2 font-semibold">$/ton</th>
                   <th className="px-3 py-2 font-semibold">Gross profit</th>
                   <th className="px-3 py-2 font-semibold">Margin</th>
                 </tr>
@@ -276,6 +299,7 @@ function Calculator() {
               <tbody>
                 {sens.map((r) => {
                   const planned = Number(r.out) === Number(i.outputLbPerMH);
+                  const atOrAbove = r.margin >= i.targetMarginPct - 1e-9; // epsilon avoids float noise at equality
                   return (
                     <tr key={r.out} className={`border-t border-line ${planned ? "bg-rebar/[0.08]" : ""}`}>
                       <td className={`px-3 py-2.5 text-left font-display font-semibold ${planned ? "text-rebar" : "text-gunmetal"}`}>
@@ -285,12 +309,9 @@ function Calculator() {
                       <td className="px-3 py-2.5 text-slate2">{num(r.fieldMH, 1)}</td>
                       <td className="px-3 py-2.5 text-slate2">{num(r.totalMH, 1)}</td>
                       <td className="px-3 py-2.5">{usd(r.cost)}</td>
-                      <td className="px-3 py-2.5 font-semibold">{usd(r.bid)}</td>
-                      <td className="px-3 py-2.5">{cents(r.centsPerLb)}</td>
-                      <td className="px-3 py-2.5">{usd(r.perTon)}</td>
-                      <td className="px-3 py-2.5 text-good">{usd(r.profit)}</td>
+                      <td className={`px-3 py-2.5 ${r.profit >= 0 ? "text-good" : "text-bad"}`}>{usd(r.profit)}</td>
                       <td className="px-3 py-2.5">
-                        <span className={`rounded px-1.5 py-0.5 text-xs font-semibold ${r.margin >= i.targetMarginPct ? "bg-good/[0.12] text-good" : "bg-warn/[0.12] text-warn"}`}>
+                        <span className={`rounded px-1.5 py-0.5 text-xs font-semibold ${atOrAbove ? "bg-good/[0.12] text-good" : "bg-warn/[0.12] text-warn"}`}>
                           {pct(r.margin)}
                         </span>
                       </td>
@@ -301,7 +322,7 @@ function Calculator() {
             </table>
           </div>
           <p className="border-t border-line px-4 py-2.5 text-[11px] text-slate2/70">
-            Cost uses the same compounding method as the headline estimate, so the planned-output row ties to the recommended bid.
+            Bid price is held fixed across every row, so margin and gross profit show what you'd actually earn at each productivity level. Green meets or beats your {pct(i.targetMarginPct, 0)} target; amber falls below. Cost uses the same compounding method as the headline estimate.
           </p>
         </Section>
 
