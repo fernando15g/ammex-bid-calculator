@@ -265,7 +265,7 @@ function Calculator() {
         </Section>
 
         {/* 6 — SENSITIVITY ANALYSIS */}
-        <Section index={6} title="Sensitivity Analysis" subtitle="Holds your bid fixed and shows how margin moves as productivity changes. Your planned row is highlighted.">
+        <Section index={6} title="Sensitivity Analysis" subtitle="Centered on your Section 2 productivity, ±5 rows. Holds your bid fixed and shows how margin moves as production runs faster or slower. Your planned row is highlighted.">
           <div className="flex flex-col gap-2 px-4 pt-4 sm:flex-row sm:items-end sm:justify-between">
             <div className="w-full sm:max-w-[260px]">
               <Field
