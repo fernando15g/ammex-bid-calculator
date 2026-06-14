@@ -95,6 +95,41 @@ function Calculator() {
 
   const marginTone = e.grossMargin >= i.targetMarginPct ? "good" : "bad";
 
+  // Save the bid's raw inputs as a new row in the Notion Bid Tracker.
+  const [notionStatus, setNotionStatus] = useState("idle"); // idle | saving | saved | error
+  const [notionMsg, setNotionMsg] = useState("");
+
+  async function saveToNotion() {
+    setNotionStatus("saving");
+    setNotionMsg("");
+    try {
+      const res = await fetch("/api/save-to-notion", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          projectName: v.projectName,
+          estimatedLbs: i.weightLb,
+          lbsPerMH: i.outputLbPerMH,
+          crewSize: i.crewSize,
+          laborRate: i.wageRate,
+          bidRatePerLb: Number(e.bidPerLb.toFixed(4)), // $/lb, matches Notion's $0.0000 format
+          notes: v.notes,
+        }),
+      });
+      const data = await res.json();
+      if (data.ok) {
+        setNotionStatus("saved");
+        setTimeout(() => setNotionStatus("idle"), 3000);
+      } else {
+        setNotionStatus("error");
+        setNotionMsg(data.error || "Save failed.");
+      }
+    } catch {
+      setNotionStatus("error");
+      setNotionMsg("Could not reach the server. Try again.");
+    }
+  }
+
   function copySummary() {
     const lines = [
       `AMMEX REBAR — BID SUMMARY`,
@@ -343,12 +378,28 @@ function Calculator() {
               <SummaryRow k="Gross profit" val={usd(e.grossProfit)} />
               <SummaryRow k="Gross margin" val={pct(e.grossMargin)} last />
             </div>
-            <button
-              onClick={copySummary}
-              className="mt-4 w-full rounded-md bg-rebar py-3 font-display font-semibold uppercase tracking-wide text-white transition hover:bg-rebarLite active:translate-y-px sm:w-auto sm:px-8"
-            >
-              {copied ? "Copied ✓" : "Copy to clipboard"}
-            </button>
+            <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:items-center">
+              <button
+                onClick={saveToNotion}
+                disabled={notionStatus === "saving"}
+                className="w-full rounded-md bg-gunmetal py-3 font-display font-semibold uppercase tracking-wide text-white transition hover:bg-steel active:translate-y-px disabled:opacity-60 sm:w-auto sm:px-8"
+              >
+                {notionStatus === "saving"
+                  ? "Saving…"
+                  : notionStatus === "saved"
+                  ? "Saved to Notion ✓"
+                  : "Save bid to Notion"}
+              </button>
+              <button
+                onClick={copySummary}
+                className="w-full rounded-md bg-rebar py-3 font-display font-semibold uppercase tracking-wide text-white transition hover:bg-rebarLite active:translate-y-px sm:w-auto sm:px-8"
+              >
+                {copied ? "Copied ✓" : "Copy to clipboard"}
+              </button>
+            </div>
+            {notionStatus === "error" && (
+              <p className="mt-2 text-sm text-bad">{notionMsg}</p>
+            )}
           </div>
         </Section>
 
