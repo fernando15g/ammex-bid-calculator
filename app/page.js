@@ -280,7 +280,7 @@ function Calculator() {
         </Section>
 
         {/* 5 — REVERSE BID ANALYSIS */}
-        <Section index={5} title="Reverse Bid Analysis" subtitle="Know the market rate? See the margin it implies against this job's cost.">
+        <Section index={5} title="Reverse Bid Analysis" subtitle="Enter a market bid rate to see the margin it implies — and the productivity your crew would need to hit at that price.">
           <div className="grid grid-cols-1 gap-4 p-4 lg:grid-cols-[220px_1fr] lg:items-start">
             <div className="rounded-md border border-line bg-white p-3.5">
               <Field label="Market / target bid rate" value={v.marketCentsPerLb} onChange={set("marketCentsPerLb")} step="any" suffix="¢/lb" hint={`${usd(rev.inputPerLb, 4)}/lb · ${usd(rev.inputPerTon)}/ton`} />
@@ -288,13 +288,36 @@ function Calculator() {
                 {rev.atOrAboveTarget ? "At or above target" : "Below target — review price or productivity"}
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-              <StatCard label="Implied revenue" value={usd(rev.impliedBid)} />
-              <StatCard label="Estimated cost" value={usd(e.totalCost)} />
-              <StatCard label="Gross profit" value={usd(rev.impliedProfit)} tone={rev.impliedProfit >= 0 ? "good" : "bad"} />
-              <StatCard label="Gross margin" value={pct(rev.impliedMargin)} tone={rev.atOrAboveTarget ? "good" : "bad"} />
-              <StatCard label="Revenue / labor hr" value={usd(rev.revenuePerMH, 2)} />
-              <StatCard label="Profit / labor hr" value={usd(rev.profitPerMH, 2)} />
+            <div className="flex flex-col gap-3">
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+                <StatCard label="Implied revenue" value={usd(rev.impliedBid)} />
+                <StatCard label="Estimated cost" value={usd(e.totalCost)} />
+                <StatCard label="Gross profit" value={usd(rev.impliedProfit)} tone={rev.impliedProfit >= 0 ? "good" : "bad"} />
+                <StatCard label="Gross margin" value={pct(rev.impliedMargin)} tone={rev.atOrAboveTarget ? "good" : "bad"} />
+                <StatCard label="Revenue / labor hr" value={usd(rev.revenuePerMH, 2)} />
+                <StatCard label="Profit / labor hr" value={usd(rev.profitPerMH, 2)} />
+              </div>
+
+              {/* Productivity required at this bid price */}
+              <div className="rounded-md border border-line bg-white p-3.5">
+                <div className="mb-2.5 flex items-baseline justify-between">
+                  <span className="text-[10px] font-semibold uppercase tracking-eyebrow text-slate2">Productivity needed at this price</span>
+                  <span className="tnum text-[11px] text-slate2/80">
+                    You planned <span className="font-semibold text-gunmetal">{num(i.outputLbPerMH)} lb/MH</span>
+                  </span>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <ProdCard
+                    label={`For ${pct(i.targetMarginPct, 0)} target margin`}
+                    prod={rev.targetMarginProd}
+                    planned={i.outputLbPerMH}
+                  />
+                  <ProdCard label="To break even" prod={rev.breakEvenProd} planned={i.outputLbPerMH} breakeven />
+                </div>
+                <p className="mt-2.5 text-[11px] leading-snug text-slate2/70">
+                  Lower than your planned pace means you have room to spare; higher means your crew must beat plan to make it work.
+                </p>
+              </div>
             </div>
           </div>
         </Section>
@@ -407,6 +430,39 @@ function Calculator() {
           Ammex Rebar Placers · Estimating assumptions are user-controlled · Calculator performs the math only
         </footer>
       </main>
+    </div>
+  );
+}
+
+function ProdCard({ label, prod, planned, breakeven }) {
+  const p = Number(planned) || 0;
+  let value, tone, note;
+  if (prod == null || !isFinite(prod) || prod <= 0) {
+    value = "—";
+    tone = "bad";
+    note = breakeven ? "Loses money at any pace" : "Not achievable at any pace";
+  } else {
+    value = `${num(prod, 0)} lb/MH`;
+    const withinPlan = prod <= p + 1e-9;
+    if (breakeven) {
+      tone = withinPlan ? "default" : "bad";
+      note = withinPlan ? "Below your planned pace" : "Above plan — underwater at your pace";
+    } else {
+      tone = withinPlan ? "good" : "warn";
+      note = withinPlan ? "At or below your planned pace" : "Must beat your planned pace";
+    }
+  }
+  const tones = {
+    default: "border-line bg-white text-gunmetal",
+    good: "border-good/30 bg-white text-good",
+    warn: "border-warn/40 bg-white text-warn",
+    bad: "border-bad/30 bg-white text-bad",
+  };
+  return (
+    <div className={`rounded-md border p-3 ${tones[tone]}`}>
+      <div className="text-[10px] font-semibold uppercase tracking-eyebrow text-slate2/70">{label}</div>
+      <div className="tnum mt-1.5 font-display text-2xl font-semibold leading-none">{value}</div>
+      <div className="mt-1 text-[11px] leading-snug text-slate2/70">{note}</div>
     </div>
   );
 }
