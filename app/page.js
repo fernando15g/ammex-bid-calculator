@@ -9,6 +9,8 @@ import {
   computeFlags,
   computeReverse,
   computeSensitivity,
+  roundToQuarterCent,
+  applyBid,
 } from "@/lib/calc";
 import { usd, num, pct, cents } from "@/lib/format";
 
@@ -24,6 +26,8 @@ const PROJECT_TYPES = [
   "PT Structure",
   "Other",
 ];
+
+const FABRICATORS = ["Tyler Reinforcing", "CMC", "Self-Performing"];
 
 export default function Page() {
   return (
@@ -66,6 +70,9 @@ function Calculator() {
       projectName: "",
       projectNumber: "",
       client: "",
+      cityCounty: "",
+      bidDueDate: "",
+      fabricator: [],
       projectType: "Other",
       notes: "",
       weightLb: "",
@@ -93,7 +100,18 @@ function Calculator() {
       : Number(sensBidOverride);
   const sens = useMemo(() => computeSensitivity(i, lockedCents), [i, lockedCents]);
 
-  const marginTone = e.grossMargin >= i.targetMarginPct ? "good" : "bad";
+  // Final bid: auto-round the recommendation to the nearest quarter-cent. An
+  // optional override lets the user set a specific final bid; clearing it returns
+  // to the rounded recommendation. Cost/inputs stay fixed; outputs follow the
+  // active bid (and the active bid is what saves to Notion).
+  const [bidOverride, setBidOverride] = useState("");
+  const recommendedCents = e.bidCentsPerLb;
+  const roundedCents = roundToQuarterCent(recommendedCents);
+  const bidOverridden = bidOverride !== "" && !isNaN(Number(bidOverride));
+  const activeCents = bidOverridden ? Number(bidOverride) : roundedCents;
+  const d = useMemo(() => applyBid(i, e, activeCents), [i, e, activeCents]);
+
+  const marginTone = d.grossMargin >= i.targetMarginPct ? "good" : "bad";
 
   // Save the bid's raw inputs as a new row in the Notion Bid Tracker.
   const [notionStatus, setNotionStatus] = useState("idle"); // idle | saving | saved | error
@@ -112,7 +130,11 @@ function Calculator() {
           lbsPerMH: i.outputLbPerMH,
           crewSize: i.crewSize,
           laborRate: i.wageRate,
-          bidRatePerLb: Number(e.bidPerLb.toFixed(4)), // $/lb, matches Notion's $0.0000 format
+          bidRatePerLb: Number(d.perLb.toFixed(4)), // active (rounded/override) bid, $/lb
+          gc: v.client,
+          cityCounty: v.cityCounty,
+          bidDueDate: v.bidDueDate,
+          fabricator: v.fabricator,
           notes: v.notes,
         }),
       });
@@ -135,7 +157,10 @@ function Calculator() {
       `AMMEX REBAR — BID SUMMARY`,
       v.projectName ? `Project: ${v.projectName}` : null,
       v.projectNumber ? `Project #: ${v.projectNumber}` : null,
-      v.client ? `Client / GC: ${v.client}` : null,
+      v.client ? `GC: ${v.client}` : null,
+      v.fabricator && v.fabricator.length ? `Fabricator: ${v.fabricator.join(", ")}` : null,
+      v.cityCounty ? `City/County: ${v.cityCounty}` : null,
+      v.bidDueDate ? `Bid due: ${v.bidDueDate}` : null,
       `Project type: ${v.projectType}`,
       ``,
       `Weight: ${num(i.weightLb)} lb (${num(e.weightTons, 2)} tons)`,
@@ -144,10 +169,10 @@ function Calculator() {
       `Labor hours: ${num(e.totalMH, 1)} MH (${num(e.crewDays, 1)} crew days)`,
       `Total cost: ${usd(e.totalCost)}`,
       ``,
-      `RECOMMENDED BID: ${usd(e.bid)}`,
-      `Bid rate: ${cents(e.bidCentsPerLb)}/lb  •  ${usd(e.bidPerTon)}/ton`,
-      `Gross profit: ${usd(e.grossProfit)}`,
-      `Gross margin: ${pct(e.grossMargin)}`,
+      `FINAL BID: ${usd(d.bid)}`,
+      `Bid rate: ${cents(activeCents)}/lb  •  ${usd(d.perTon)}/ton`,
+      `Gross profit: ${usd(d.grossProfit)}`,
+      `Gross margin: ${pct(d.grossMargin)}`,
       v.notes ? `\nNotes: ${v.notes}` : null,
     ].filter(Boolean);
     navigator.clipboard?.writeText(lines.join("\n")).then(() => {
@@ -166,8 +191,8 @@ function Calculator() {
             <div className="font-display text-xl font-bold uppercase leading-tight tracking-wide text-white">Bid Calculator</div>
           </div>
           <div className="text-right">
-            <div className="text-[10px] uppercase tracking-eyebrow text-white/50">Recommended bid</div>
-            <div className="tnum font-display text-2xl font-bold leading-none text-rebarLite">{cents(e.bidCentsPerLb)}/lb</div>
+            <div className="text-[10px] uppercase tracking-eyebrow text-white/50">{bidOverridden ? "Final bid" : "Bid rate"}</div>
+            <div className="tnum font-display text-2xl font-bold leading-none text-rebarLite">{cents(activeCents)}/lb</div>
           </div>
         </div>
       </header>
@@ -186,8 +211,13 @@ function Calculator() {
           <div className="grid grid-cols-1 gap-4 p-4 sm:grid-cols-2">
             <Field label="Project name" type="text" value={v.projectName} onChange={set("projectName")} placeholder="e.g. SR-101 Box Culvert" />
             <Field label="Project number" type="text" value={v.projectNumber} onChange={set("projectNumber")} placeholder="Optional" />
-            <Field label="Client / GC" type="text" value={v.client} onChange={set("client")} placeholder="General contractor" />
+            <Field label="GC" type="text" value={v.client} onChange={set("client")} placeholder="General contractor" />
+            <Field label="City / County" type="text" value={v.cityCounty} onChange={set("cityCounty")} placeholder="e.g. Maricopa County" />
+            <Field label="Bid due date" type="date" value={v.bidDueDate} onChange={set("bidDueDate")} />
             <Field label="Project type" value={v.projectType} onChange={set("projectType")} options={PROJECT_TYPES} />
+            <div className="sm:col-span-2">
+              <FabricatorPicker value={v.fabricator} onChange={set("fabricator")} />
+            </div>
             <div className="sm:col-span-2">
               <Field label="Notes" textarea value={v.notes} onChange={set("notes")} placeholder="Access, phasing, congestion, deck height, night work…" />
             </div>
@@ -250,32 +280,59 @@ function Calculator() {
         </Section>
 
         {/* 4 — RECOMMENDED BID RESULTS */}
-        <Section index={4} title="Recommended Bid" subtitle={`Priced to your ${pct(i.targetMarginPct, 0)} target gross margin.`}>
+        <Section index={4} title="Recommended Bid" subtitle={`Priced to your ${pct(i.targetMarginPct, 0)} target margin, then rounded to the nearest quarter-cent.`}>
           {/* Hero */}
           <div className="border-b border-line bg-steel p-5 sm:p-6">
             <div className="flex flex-col items-start justify-between gap-5 sm:flex-row sm:items-end">
               <div>
-                <div className="eyebrow text-[10px] text-white/55">Recommended bid amount</div>
-                <div className="tnum font-display text-5xl font-bold leading-none text-white sm:text-6xl">{usd(e.bid)}</div>
+                <div className="eyebrow text-[10px] text-white/55">{bidOverridden ? "Final bid (override)" : "Recommended bid"}</div>
+                <div className="tnum font-display text-5xl font-bold leading-none text-white sm:text-6xl">{usd(d.bid)}</div>
                 <div className="mt-2 text-sm text-white/60">
                   {num(i.weightLb)} lb · {num(e.weightTons, 2)} tons · {num(e.totalMH, 1)} labor hrs
                 </div>
               </div>
               <div className="dim-line w-full px-3 py-2 text-center sm:w-auto sm:min-w-[180px]">
                 <div className="eyebrow text-[10px] text-rebarLite">Bid rate</div>
-                <div className="tnum font-display text-4xl font-bold leading-none text-white">{cents(e.bidCentsPerLb)}</div>
+                <div className="tnum font-display text-4xl font-bold leading-none text-white">{cents(activeCents)}</div>
                 <div className="text-[11px] uppercase tracking-eyebrow text-white/45">per lb</div>
               </div>
             </div>
           </div>
+
+          {/* Final bid override */}
+          <div className="flex flex-col gap-2 border-b border-line px-4 py-3 sm:flex-row sm:items-end sm:justify-between">
+            <div className="w-full sm:max-w-[240px]">
+              <Field
+                label="Final bid override"
+                value={bidOverride}
+                onChange={(x) => setBidOverride(x === "" ? "" : x)}
+                step="any"
+                suffix="¢/lb"
+                placeholder={cents(roundedCents)}
+                hint={bidOverridden ? "Using your bid · clear to return to recommended" : "Auto-rounded — type a number to override"}
+              />
+            </div>
+            <div className="pb-1 text-[11px] text-slate2/80">
+              Computed <span className="tnum font-semibold text-gunmetal">{cents(recommendedCents)}/lb</span>
+              <span className="text-slate2/50"> · </span>
+              rounded to <span className="tnum font-semibold text-gunmetal">{cents(roundedCents)}/lb</span>
+              {bidOverridden && (
+                <>
+                  <span className="text-slate2/50"> · </span>
+                  using <span className="tnum font-semibold text-rebar">{cents(activeCents)}/lb</span>
+                </>
+              )}
+            </div>
+          </div>
+
           {/* Supporting metrics */}
           <div className="grid grid-cols-2 gap-3 p-4 sm:grid-cols-3 lg:grid-cols-4">
-            <StatCard label="Bid rate / lb" value={usd(e.bidPerLb, 4)} />
-            <StatCard label="Bid rate / ton" value={usd(e.bidPerTon)} />
-            <StatCard label="Gross profit" value={usd(e.grossProfit)} tone="good" />
-            <StatCard label="Gross margin" value={pct(e.grossMargin)} tone={marginTone} />
-            <StatCard label="Revenue / labor hr" value={usd(e.revenuePerMH, 2)} sub="rate × productivity" />
-            <StatCard label="Profit / labor hr" value={usd(e.profitPerMH, 2)} sub="less loaded rate" />
+            <StatCard label="Bid rate / lb" value={usd(d.perLb, 4)} />
+            <StatCard label="Bid rate / ton" value={usd(d.perTon)} />
+            <StatCard label="Gross profit" value={usd(d.grossProfit)} tone={d.grossProfit >= 0 ? "good" : "bad"} />
+            <StatCard label="Gross margin" value={pct(d.grossMargin)} tone={marginTone} />
+            <StatCard label="Revenue / labor hr" value={usd(d.revenuePerMH, 2)} sub="rate × productivity" />
+            <StatCard label="Profit / labor hr" value={usd(d.profitPerMH, 2)} sub="less loaded rate" />
           </div>
         </Section>
 
@@ -390,16 +447,19 @@ function Calculator() {
             <div className="rounded-md border border-line bg-white">
               <SummaryRow k="Project" val={v.projectName || "—"} />
               {v.projectNumber && <SummaryRow k="Project #" val={v.projectNumber} />}
-              {v.client && <SummaryRow k="Client / GC" val={v.client} />}
+              {v.client && <SummaryRow k="GC" val={v.client} />}
+              {v.fabricator && v.fabricator.length > 0 && <SummaryRow k="Fabricator" val={v.fabricator.join(", ")} />}
+              {v.cityCounty && <SummaryRow k="City / County" val={v.cityCounty} />}
+              {v.bidDueDate && <SummaryRow k="Bid due" val={v.bidDueDate} />}
               <SummaryRow k="Type" val={v.projectType} />
               <SummaryRow k="Weight" val={`${num(i.weightLb)} lb · ${num(e.weightTons, 2)} tons`} />
               <SummaryRow k="Productivity" val={`${num(i.outputLbPerMH)} lb/MH`} />
               <SummaryRow k="Labor hours" val={`${num(e.totalMH, 1)} MH · ${num(e.crewDays, 1)} crew days`} />
               <SummaryRow k="Total cost" val={usd(e.totalCost)} />
-              <SummaryRow k="Recommended bid" val={usd(e.bid)} strong />
-              <SummaryRow k="Bid rate" val={`${cents(e.bidCentsPerLb)}/lb · ${usd(e.bidPerTon)}/ton`} />
-              <SummaryRow k="Gross profit" val={usd(e.grossProfit)} />
-              <SummaryRow k="Gross margin" val={pct(e.grossMargin)} last />
+              <SummaryRow k={bidOverridden ? "Final bid" : "Recommended bid"} val={usd(d.bid)} strong />
+              <SummaryRow k="Bid rate" val={`${cents(activeCents)}/lb · ${usd(d.perTon)}/ton`} />
+              <SummaryRow k="Gross profit" val={usd(d.grossProfit)} />
+              <SummaryRow k="Gross margin" val={pct(d.grossMargin)} last />
             </div>
             <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:items-center">
               <button
@@ -463,6 +523,43 @@ function ProdCard({ label, prod, planned, breakeven }) {
       <div className="text-[10px] font-semibold uppercase tracking-eyebrow text-slate2/70">{label}</div>
       <div className="tnum mt-1.5 font-display text-2xl font-semibold leading-none">{value}</div>
       <div className="mt-1 text-[11px] leading-snug text-slate2/70">{note}</div>
+    </div>
+  );
+}
+
+function FabricatorPicker({ value, onChange }) {
+  const sel = Array.isArray(value) ? value : [];
+  const toggle = (name) => {
+    if (sel.includes(name)) onChange(sel.filter((x) => x !== name));
+    else if (sel.length < 2) onChange([...sel, name]);
+  };
+  return (
+    <div>
+      <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-slate2">Fabricator</span>
+      <div className="flex flex-wrap gap-2">
+        {FABRICATORS.map((name) => {
+          const on = sel.includes(name);
+          const atMax = !on && sel.length >= 2;
+          return (
+            <button
+              key={name}
+              type="button"
+              onClick={() => toggle(name)}
+              disabled={atMax}
+              className={`rounded-md border px-3 py-2 text-sm font-medium transition active:translate-y-px ${
+                on
+                  ? "border-rebar bg-rebar text-white"
+                  : atMax
+                  ? "border-line bg-white text-slate2/40"
+                  : "border-line bg-white text-gunmetal hover:border-rebar hover:text-rebar"
+              }`}
+            >
+              {name}
+            </button>
+          );
+        })}
+      </div>
+      <span className="mt-1 block text-[11px] text-slate2/70">Pick up to two</span>
     </div>
   );
 }

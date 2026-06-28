@@ -22,6 +22,15 @@ const numProp = (n) => {
   const v = Number(n);
   return { number: isFinite(v) ? v : null };
 };
+// Notion date wants ISO (YYYY-MM-DD from the date input); empty -> cleared.
+const dateProp = (s) => {
+  const v = String(s || "").trim();
+  return { date: v ? { start: v } : null };
+};
+// Notion multi-select wants a list of { name }; reuses existing tags by name.
+const multiProp = (arr) => ({
+  multi_select: (Array.isArray(arr) ? arr : []).filter(Boolean).map((name) => ({ name: String(name) })),
+});
 
 export async function POST(request) {
   const token = process.env.NOTION_TOKEN;
@@ -41,7 +50,7 @@ export async function POST(request) {
     return Response.json({ ok: false, error: "Invalid request body." }, { status: 400 });
   }
 
-  const { projectName, estimatedLbs, lbsPerMH, crewSize, laborRate, bidRatePerLb, notes } = body || {};
+  const { projectName, estimatedLbs, lbsPerMH, crewSize, laborRate, bidRatePerLb, notes, gc, cityCounty, bidDueDate, fabricator } = body || {};
 
   if (!projectName || String(projectName).trim() === "") {
     return Response.json({ ok: false, error: "Enter a Project Name before saving to Notion." }, { status: 400 });
@@ -55,6 +64,10 @@ export async function POST(request) {
     "Estimated Crew Size": numProp(crewSize),
     "Labor Rate": numProp(laborRate),
     "Bid Rate ($/LB)": numProp(bidRatePerLb),
+    "GC": textProp(gc),
+    "City/County": textProp(cityCounty),
+    "Bid Due Date": dateProp(bidDueDate),
+    "Fabricator": multiProp(fabricator),
     "Notes": textProp(notes),
   };
 
