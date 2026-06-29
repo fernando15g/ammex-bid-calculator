@@ -64,7 +64,7 @@ export async function POST(request) {
     "Estimated Crew Size": numProp(crewSize),
     "Labor Rate": numProp(laborRate),
     "Bid Rate ($/LB)": numProp(bidRatePerLb),
-    "GC": textProp(gc),
+    "GC": multiProp([gc]),
     "City/County": textProp(cityCounty),
     "Bid Due Date": dateProp(bidDueDate),
     "Fabricator": multiProp(fabricator),
