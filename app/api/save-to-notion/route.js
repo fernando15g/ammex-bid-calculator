@@ -50,7 +50,14 @@ export async function POST(request) {
     return Response.json({ ok: false, error: "Invalid request body." }, { status: 400 });
   }
 
-  const { projectName, estimatedLbs, lbsPerMH, crewSize, laborRate, bidRatePerLb, notes, gc, cityCounty, bidDueDate, fabricator } = body || {};
+  const {
+    projectName, estimatedLbs, lbsPerMH, crewSize, laborRate, bidRatePerLb, notes,
+    gc, cityCounty, bidDueDate, fabricator,
+    // computed dollars/margin (from the active/rounded bid)
+    operatingProfit, operatingMargin, fullyLoadedCost, burdenedLaborCost,
+    // assumptions used on this bid
+    burdenPct, toolsPct, contingencyPct, mobilizationHrs, targetMarginPct,
+  } = body || {};
 
   if (!projectName || String(projectName).trim() === "") {
     return Response.json({ ok: false, error: "Enter a Project Name before saving to Notion." }, { status: 400 });
@@ -62,13 +69,24 @@ export async function POST(request) {
     "Estimated LBS": numProp(estimatedLbs),
     "Estimated LBS/MH": numProp(lbsPerMH),
     "Estimated Crew Size": numProp(crewSize),
-    "Labor Rate": numProp(laborRate),
+    "Base Wage Rate": numProp(laborRate),
     "Bid Rate ($/LB)": numProp(bidRatePerLb),
     "GC": multiProp([gc]),
     "City/County": textProp(cityCounty),
     "Bid Due Date": dateProp(bidDueDate),
     "Fabricator": multiProp(fabricator),
     "Notes": textProp(notes),
+    // Authoritative computed values from this bid (Number columns)
+    "Operating Profit (calc)": numProp(operatingProfit),
+    "Operating Margin (calc)": numProp(operatingMargin), // ratio; column formatted as Percent
+    "Fully-Loaded Cost (calc)": numProp(fullyLoadedCost),
+    "Burdened Labor Cost (calc)": numProp(burdenedLaborCost),
+    // Assumptions used on this bid (percent columns store ratios; format as Percent)
+    "Burden/OH % (calc)": numProp(burdenPct),
+    "Tools % (calc)": numProp(toolsPct),
+    "Contingency % (calc)": numProp(contingencyPct),
+    "Mobilization Hrs (calc)": numProp(mobilizationHrs),
+    "Target Margin % (calc)": numProp(targetMarginPct),
   };
 
   try {

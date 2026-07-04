@@ -136,6 +136,17 @@ function Calculator() {
           bidDueDate: v.bidDueDate,
           fabricator: v.fabricator,
           notes: v.notes,
+          // computed from the active bid (what you actually see/save)
+          operatingProfit: Number(d.grossProfit.toFixed(2)),
+          operatingMargin: Number(d.grossMargin.toFixed(4)), // ratio
+          fullyLoadedCost: Number(e.totalCost.toFixed(2)),
+          burdenedLaborCost: Number(e.directLabor.toFixed(2)),
+          // assumptions used on this bid (ratios for the % ones)
+          burdenPct: i.burdenPct,
+          toolsPct: i.toolsPct,
+          contingencyPct: i.contingencyPct,
+          mobilizationHrs: i.mobilizationHrs,
+          targetMarginPct: i.targetMarginPct,
         }),
       });
       const data = await res.json();
