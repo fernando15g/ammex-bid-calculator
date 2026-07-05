@@ -178,12 +178,12 @@ function Calculator() {
       `Productivity: ${num(i.outputLbPerMH)} lb/MH`,
       `Crew: ${num(i.crewSize)} @ ${num(i.hoursPerDay)} hrs/day`,
       `Labor hours: ${num(e.totalMH, 1)} MH (${num(e.crewDays, 1)} crew days)`,
-      `Total cost: ${usd(e.totalCost)}`,
+      `Fully-loaded cost: ${usd(e.totalCost)}`,
       ``,
       `FINAL BID: ${usd(d.bid)}`,
       `Bid rate: ${cents(activeCents)}/lb  •  ${usd(d.perTon)}/ton`,
-      `Gross profit: ${usd(d.grossProfit)}`,
-      `Gross margin: ${pct(d.grossMargin)}`,
+      `Operating profit: ${usd(d.grossProfit)}`,
+      `Operating margin: ${pct(d.grossMargin)}`,
       v.notes ? `\nNotes: ${v.notes}` : null,
     ].filter(Boolean);
     navigator.clipboard?.writeText(lines.join("\n")).then(() => {
@@ -245,7 +245,7 @@ function Calculator() {
             <Field label="Mobilization / setup" value={v.mobilizationHrs} onChange={set("mobilizationHrs")} step="any" suffix="hrs" />
             <Field label="Base wage rate" value={v.wageRate} onChange={set("wageRate")} step="any" prefix="$" suffix="/hr" />
             <Field
-              label="Labor Burden & Field Overhead %"
+              label="Burden, Field & Company Overhead %"
               value={pctIn(v.burdenPct)}
               onChange={(x) => set("burdenPct")(pctOut(x))}
               step="any"
@@ -254,7 +254,7 @@ function Calculator() {
             />
             <Field label="Small tools / consumables %" value={pctIn(v.toolsPct)} onChange={(x) => set("toolsPct")(pctOut(x))} step="any" suffix="%" />
             <Field label="Contingency %" value={pctIn(v.contingencyPct)} onChange={(x) => set("contingencyPct")(pctOut(x))} step="any" suffix="%" />
-            <Field label="Target gross margin %" value={pctIn(v.targetMarginPct)} onChange={(x) => set("targetMarginPct")(pctOut(x))} step="any" suffix="%" />
+            <Field label="Target margin %" value={pctIn(v.targetMarginPct)} onChange={(x) => set("targetMarginPct")(pctOut(x))} step="any" suffix="%" />
           </div>
 
           {flags.length > 0 && (
@@ -282,10 +282,10 @@ function Calculator() {
             <StatCard label="Total man-hours" value={num(e.totalMH, 1)} sub="incl. mobilization" />
             <StatCard label="Crew days" value={num(e.crewDays, 1)} sub={`${num(i.crewSize)} × ${num(i.hoursPerDay)} hrs`} />
             <StatCard label="Loaded labor rate" value={usd(e.loadedRate, 2)} sub="wage + burden" />
-            <StatCard label="Direct labor cost" value={usd(e.directLabor)} />
+            <StatCard label="Burdened labor cost" value={usd(e.directLabor)} />
             <StatCard label="Tools / consumables" value={usd(e.tools)} />
             <StatCard label="Contingency" value={usd(e.contingency)} />
-            <StatCard label="Total estimated cost" value={usd(e.totalCost)} tone="dark" />
+            <StatCard label="Fully-loaded cost" value={usd(e.totalCost)} tone="dark" />
             <StatCard label="Breakeven / ton" value={usd(e.breakevenPerTon)} />
           </div>
         </Section>
@@ -298,6 +298,7 @@ function Calculator() {
               <div>
                 <div className="eyebrow text-[10px] text-white/55">{bidOverridden ? "Final bid (override)" : "Recommended bid"}</div>
                 <div className="tnum font-display text-5xl font-bold leading-none text-white sm:text-6xl">{usd(d.bid)}</div>
+                <div className="mt-1 text-[11px] italic text-white/40">also known as Contract Value</div>
                 <div className="mt-2 text-sm text-white/60">
                   {num(i.weightLb)} lb · {num(e.weightTons, 2)} tons · {num(e.totalMH, 1)} labor hrs
                 </div>
@@ -340,8 +341,8 @@ function Calculator() {
           <div className="grid grid-cols-2 gap-3 p-4 sm:grid-cols-3 lg:grid-cols-4">
             <StatCard label="Bid rate / lb" value={usd(d.perLb, 4)} />
             <StatCard label="Bid rate / ton" value={usd(d.perTon)} />
-            <StatCard label="Gross profit" value={usd(d.grossProfit)} tone={d.grossProfit >= 0 ? "good" : "bad"} />
-            <StatCard label="Gross margin" value={pct(d.grossMargin)} tone={marginTone} />
+            <StatCard label="Operating profit" value={usd(d.grossProfit)} sub="after costs & overhead, pre-tax" tone={d.grossProfit >= 0 ? "good" : "bad"} />
+            <StatCard label="Operating margin" value={pct(d.grossMargin)} tone={marginTone} />
             <StatCard label="Revenue / labor hr" value={usd(d.revenuePerMH, 2)} sub="rate × productivity" />
             <StatCard label="Profit / labor hr" value={usd(d.profitPerMH, 2)} sub="less loaded rate" />
           </div>
@@ -360,8 +361,8 @@ function Calculator() {
               <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
                 <StatCard label="Implied revenue" value={usd(rev.impliedBid)} />
                 <StatCard label="Estimated cost" value={usd(e.totalCost)} />
-                <StatCard label="Gross profit" value={usd(rev.impliedProfit)} tone={rev.impliedProfit >= 0 ? "good" : "bad"} />
-                <StatCard label="Gross margin" value={pct(rev.impliedMargin)} tone={rev.atOrAboveTarget ? "good" : "bad"} />
+                <StatCard label="Operating profit" value={usd(rev.impliedProfit)} tone={rev.impliedProfit >= 0 ? "good" : "bad"} />
+                <StatCard label="Operating margin" value={pct(rev.impliedMargin)} tone={rev.atOrAboveTarget ? "good" : "bad"} />
                 <StatCard label="Revenue / labor hr" value={usd(rev.revenuePerMH, 2)} />
                 <StatCard label="Profit / labor hr" value={usd(rev.profitPerMH, 2)} />
               </div>
@@ -417,8 +418,8 @@ function Calculator() {
                   <th className="px-3 py-2 text-left font-semibold">lb/MH</th>
                   <th className="px-3 py-2 font-semibold">Field MH</th>
                   <th className="px-3 py-2 font-semibold">Total MH</th>
-                  <th className="px-3 py-2 font-semibold">Total cost</th>
-                  <th className="px-3 py-2 font-semibold">Gross profit</th>
+                  <th className="px-3 py-2 font-semibold">Fully-loaded cost</th>
+                  <th className="px-3 py-2 font-semibold">Operating profit</th>
                   <th className="px-3 py-2 font-semibold">Margin</th>
                 </tr>
               </thead>
@@ -448,7 +449,7 @@ function Calculator() {
             </table>
           </div>
           <p className="border-t border-line px-4 py-2.5 text-[11px] text-slate2/70">
-            Bid price is held fixed across every row, so margin and gross profit show what you'd actually earn at each productivity level. Green meets or beats your {pct(i.targetMarginPct, 0)} target; amber falls below. Cost uses the same compounding method as the headline estimate.
+            Bid price is held fixed across every row, so margin and operating profit show what you'd actually earn at each productivity level. Green meets or beats your {pct(i.targetMarginPct, 0)} target; amber falls below. Cost uses the same compounding method as the headline estimate.
           </p>
         </Section>
 
@@ -466,11 +467,11 @@ function Calculator() {
               <SummaryRow k="Weight" val={`${num(i.weightLb)} lb · ${num(e.weightTons, 2)} tons`} />
               <SummaryRow k="Productivity" val={`${num(i.outputLbPerMH)} lb/MH`} />
               <SummaryRow k="Labor hours" val={`${num(e.totalMH, 1)} MH · ${num(e.crewDays, 1)} crew days`} />
-              <SummaryRow k="Total cost" val={usd(e.totalCost)} />
+              <SummaryRow k="Fully-loaded cost" val={usd(e.totalCost)} />
               <SummaryRow k={bidOverridden ? "Final bid" : "Recommended bid"} val={usd(d.bid)} strong />
               <SummaryRow k="Bid rate" val={`${cents(activeCents)}/lb · ${usd(d.perTon)}/ton`} />
-              <SummaryRow k="Gross profit" val={usd(d.grossProfit)} />
-              <SummaryRow k="Gross margin" val={pct(d.grossMargin)} last />
+              <SummaryRow k="Operating profit" val={usd(d.grossProfit)} />
+              <SummaryRow k="Operating margin" val={pct(d.grossMargin)} last />
             </div>
             <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:items-center">
               <button
