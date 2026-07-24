@@ -57,6 +57,8 @@ export async function POST(request) {
     operatingProfit, operatingMargin, fullyLoadedCost, burdenedLaborCost,
     // assumptions used on this bid
     burdenPct, toolsPct, contingencyPct, mobilizationHrs, targetMarginPct,
+    // specialty scope
+    rebarRevenue, specialtyRevenue, specialtyCost, specialtyHours, specialtyTypes,
   } = body || {};
 
   if (!projectName || String(projectName).trim() === "") {
@@ -87,6 +89,12 @@ export async function POST(request) {
     "Contingency % (calc)": numProp(contingencyPct),
     "Mobilization Hrs (calc)": numProp(mobilizationHrs),
     "Target Margin % (calc)": numProp(targetMarginPct),
+    // Specialty scope (labor-only)
+    "Rebar Revenue (calc)": numProp(rebarRevenue),
+    "Specialty Revenue (calc)": numProp(specialtyRevenue),
+    "Specialty Cost (calc)": numProp(specialtyCost),
+    "Specialty Hours (calc)": numProp(specialtyHours),
+    "Specialty Type": multiProp(specialtyTypes),
   };
 
   try {

@@ -11,6 +11,9 @@ import {
   computeSensitivity,
   roundToQuarterCent,
   applyBid,
+  SPECIALTY_TYPES,
+  newSpecialtyLine,
+  computeSpecialtyRollup,
 } from "@/lib/calc";
 import { usd, num, pct, cents } from "@/lib/format";
 
@@ -77,7 +80,9 @@ function Calculator() {
       notes: "",
       weightLb: "",
       outputLbPerMH: "",
+      specialtyLines: [],
     }));
+    setBidOverride("");
   }
 
   // Guard against blank inputs while typing (treat "" as 0 for math).
@@ -111,6 +116,20 @@ function Calculator() {
   const activeCents = bidOverridden ? Number(bidOverride) : roundedCents;
   const d = useMemo(() => applyBid(i, e, activeCents), [i, e, activeCents]);
 
+  // Specialty scope rollup (labor-only). Rebar side comes from the active bid.
+  const sp = useMemo(
+    () => computeSpecialtyRollup(v.specialtyOn ? v.specialtyLines : [], i,
+      { revenue: d.bid, cost: e.totalCost, hours: e.totalMH }),
+    [v.specialtyOn, v.specialtyLines, i, d.bid, e.totalCost, e.totalMH]
+  );
+  const hasSpecialty = v.specialtyOn && v.specialtyLines.length > 0;
+
+  const addLine = (t) => setV((s) => ({ ...s, specialtyLines: [...s.specialtyLines, newSpecialtyLine(t)] }));
+  const removeLine = (id) => setV((s) => ({ ...s, specialtyLines: s.specialtyLines.filter((l) => l.id !== id) }));
+  const updLine = (id, patch) => setV((s) => ({
+    ...s, specialtyLines: s.specialtyLines.map((l) => (l.id === id ? { ...l, ...patch } : l)),
+  }));
+
   const marginTone = d.grossMargin >= i.targetMarginPct ? "good" : "bad";
 
   // Save the bid's raw inputs as a new row in the Notion Bid Tracker.
@@ -137,10 +156,15 @@ function Calculator() {
           fabricator: v.fabricator,
           notes: v.notes,
           // computed from the active bid (what you actually see/save)
-          operatingProfit: Number(d.grossProfit.toFixed(2)),
-          operatingMargin: Number(d.grossMargin.toFixed(4)), // ratio
-          fullyLoadedCost: Number(e.totalCost.toFixed(2)),
+          operatingProfit: Number(sp.totalProfit.toFixed(2)),
+          operatingMargin: Number(sp.totalMargin.toFixed(4)), // ratio, combined
+          fullyLoadedCost: Number(sp.totalCost.toFixed(2)),
           burdenedLaborCost: Number(e.directLabor.toFixed(2)),
+          rebarRevenue: Number(d.bid.toFixed(2)),
+          specialtyRevenue: Number(sp.specRevenue.toFixed(2)),
+          specialtyCost: Number(sp.specCost.toFixed(2)),
+          specialtyHours: Number(sp.specHours.toFixed(2)),
+          specialtyTypes: hasSpecialty ? [...new Set(v.specialtyLines.map((l) => l.type))] : [],
           // assumptions used on this bid (ratios for the % ones)
           burdenPct: i.burdenPct,
           toolsPct: i.toolsPct,
@@ -348,8 +372,169 @@ function Calculator() {
           </div>
         </Section>
 
-        {/* 5 — REVERSE BID ANALYSIS */}
-        <Section index={5} title="Reverse Bid Analysis" subtitle="Enter a market bid rate to see the margin it implies — and the productivity your crew would need to hit at that price.">
+        {/* 5 — SPECIALTY SCOPE */}
+        <Section index={5} title="Specialty Scope" subtitle="PT and mesh, priced labor-only on the same cost stack as rebar. Material is not included here.">
+          <div className="flex items-center justify-between gap-3 px-4 py-3">
+            <label className="flex cursor-pointer items-center gap-2.5">
+              <input
+                type="checkbox"
+                checked={!!v.specialtyOn}
+                onChange={(ev) => set("specialtyOn")(ev.target.checked)}
+                className="h-4 w-4 accent-rebar"
+              />
+              <span className="text-sm font-semibold text-gunmetal">Add specialty scope to this bid</span>
+            </label>
+            {v.specialtyOn && (
+              <div className="flex flex-wrap gap-1.5">
+                {SPECIALTY_TYPES.map((t) => (
+                  <button
+                    key={t}
+                    type="button"
+                    onClick={() => addLine(t)}
+                    className="rounded-md border border-line bg-white px-2.5 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-slate2 transition hover:border-rebar hover:text-rebar active:translate-y-px"
+                  >
+                    + {t}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {v.specialtyOn && (
+            <div className="border-t border-line p-4">
+              {v.specialtyLines.length === 0 ? (
+                <p className="text-sm text-slate2/70">Add a line above to price PT or mesh alongside the rebar.</p>
+              ) : (
+                <div className="space-y-3">
+                  {v.specialtyLines.map((l) => {
+                    const r = sp.rows.find((x) => x.id === l.id) || {};
+                    return (
+                      <div key={l.id} className="rounded-md border border-line bg-white p-3.5">
+                        <div className="mb-3 flex items-center justify-between">
+                          <span className="rounded bg-rebar/[0.10] px-2 py-1 text-[11px] font-semibold uppercase tracking-wide text-rebar">{l.type}</span>
+                          <button type="button" onClick={() => removeLine(l.id)} className="text-[11px] font-semibold uppercase tracking-wide text-slate2/60 hover:text-bad">Remove</button>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+                          {l.type === "PT Building" && (
+                            <>
+                              <Field label="Tons" value={l.tons} step="any" suffix="tn"
+                                onChange={(x) => updLine(l.id, { tons: x, lbs: x === "" ? "" : Number(x) * 2000 })} />
+                              <Field label="Pounds" value={l.lbs} step="any" suffix="lb"
+                                onChange={(x) => updLine(l.id, { lbs: x, tons: x === "" ? "" : Number(x) / 2000 })} />
+                              <Field label="Productivity" value={l.prodLbPerMH} step="any" suffix="lb/MH"
+                                onChange={(x) => updLine(l.id, { prodLbPerMH: x })} />
+                              <Field label="Your rate" value={l.rateCentsPerLb} step="any" suffix="¢/lb"
+                                placeholder={r.recommendedRate ? r.recommendedRate.toFixed(2) : ""}
+                                hint={r.recommendedRate ? `Recommended ${cents(r.recommendedRate)}/lb` : "Enter productivity for a recommendation"}
+                                onChange={(x) => updLine(l.id, { rateCentsPerLb: x })} />
+                            </>
+                          )}
+                          {l.type === "PT Bridge" && (
+                            <>
+                              <Field label="Hours (from fabricator)" value={l.hours} step="any" suffix="hrs"
+                                onChange={(x) => updLine(l.id, { hours: x })} />
+                              <Field label="Your rate" value={l.ratePerHour} step="any" prefix="$" suffix="/hr"
+                                placeholder={r.recommendedRate ? r.recommendedRate.toFixed(2) : ""}
+                                hint={r.recommendedRate ? `Recommended ${usd(r.recommendedRate, 2)}/hr` : ""}
+                                onChange={(x) => updLine(l.id, { ratePerHour: x })} />
+                            </>
+                          )}
+                          {l.type === "Mesh" && (
+                            <>
+                              <Field label="Square feet" value={l.sqft} step="any" suffix="sqft"
+                                onChange={(x) => updLine(l.id, { sqft: x })} />
+                              <Field label="Productivity (optional)" value={l.prodSqftPerMH} step="any" suffix="sqft/MH"
+                                hint="Blank = revenue only, no cost basis"
+                                onChange={(x) => updLine(l.id, { prodSqftPerMH: x })} />
+                              <Field label="Your rate" value={l.rateCentsPerSqft} step="any" suffix="¢/sqft"
+                                placeholder={r.recommendedRate ? r.recommendedRate.toFixed(2) : ""}
+                                hint={r.recommendedRate ? `Recommended ${cents(r.recommendedRate)}/sqft` : "Enter productivity for a recommendation"}
+                                onChange={(x) => updLine(l.id, { rateCentsPerSqft: x })} />
+                            </>
+                          )}
+                        </div>
+
+                        <div className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-1 border-t border-line pt-2.5 text-[11px] text-slate2">
+                          <span className="tnum">{r.qtyLabel}</span>
+                          {r.hasCostBasis ? (
+                            <>
+                              <span className="tnum">{num(r.hours, 1)} MH</span>
+                              <span className="tnum">cost {usd(r.cost)}</span>
+                              <span className="tnum">revenue {usd(r.revenue)}</span>
+                              <span className={`tnum font-semibold ${r.margin >= i.targetMarginPct ? "text-good" : "text-warn"}`}>
+                                {pct(r.margin)} margin
+                              </span>
+                            </>
+                          ) : (
+                            <>
+                              <span className="tnum">revenue {usd(r.revenue)}</span>
+                              <span className="font-semibold text-warn">▲ no cost basis — add productivity</span>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* Rebar vs specialty vs combined */}
+              {v.specialtyLines.length > 0 && (
+                <div className="mt-4 overflow-x-auto rounded-md border border-line bg-white">
+                  <table className="tnum w-full min-w-[420px] border-collapse text-right text-sm">
+                    <thead>
+                      <tr className="text-[10px] uppercase tracking-eyebrow text-slate2">
+                        <th className="px-3 py-2 text-left font-semibold">Scope</th>
+                        <th className="px-3 py-2 font-semibold">Hours</th>
+                        <th className="px-3 py-2 font-semibold">Cost</th>
+                        <th className="px-3 py-2 font-semibold">Revenue</th>
+                        <th className="px-3 py-2 font-semibold">Op. profit</th>
+                        <th className="px-3 py-2 font-semibold">Margin</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr className="border-t border-line">
+                        <td className="px-3 py-2.5 text-left font-semibold text-gunmetal">Rebar</td>
+                        <td className="px-3 py-2.5 text-slate2">{num(e.totalMH, 1)}</td>
+                        <td className="px-3 py-2.5">{usd(e.totalCost)}</td>
+                        <td className="px-3 py-2.5">{usd(d.bid)}</td>
+                        <td className="px-3 py-2.5">{usd(d.grossProfit)}</td>
+                        <td className="px-3 py-2.5">{pct(d.grossMargin)}</td>
+                      </tr>
+                      <tr className="border-t border-line">
+                        <td className="px-3 py-2.5 text-left font-semibold text-gunmetal">Specialty</td>
+                        <td className="px-3 py-2.5 text-slate2">{num(sp.specHours, 1)}</td>
+                        <td className="px-3 py-2.5">{usd(sp.specCost)}</td>
+                        <td className="px-3 py-2.5">{usd(sp.specRevenue)}</td>
+                        <td className="px-3 py-2.5">{usd(sp.specProfit)}</td>
+                        <td className="px-3 py-2.5">{sp.specRevenue > 0 ? pct(sp.specMargin) : "—"}</td>
+                      </tr>
+                      <tr className="border-t-2 border-gunmetal/20 bg-rebar/[0.06]">
+                        <td className="px-3 py-2.5 text-left font-display font-semibold text-rebar">Combined</td>
+                        <td className="px-3 py-2.5 font-semibold">{num(sp.totalHours, 1)}</td>
+                        <td className="px-3 py-2.5 font-semibold">{usd(sp.totalCost)}</td>
+                        <td className="px-3 py-2.5 font-semibold">{usd(sp.totalRevenue)}</td>
+                        <td className="px-3 py-2.5 font-semibold">{usd(sp.totalProfit)}</td>
+                        <td className={`px-3 py-2.5 font-semibold ${sp.totalMargin >= i.targetMarginPct ? "text-good" : "text-warn"}`}>
+                          {pct(sp.totalMargin)}
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                  {sp.missingBasis > 0 && (
+                    <p className="border-t border-line px-3 py-2 text-[11px] text-warn">
+                      ▲ {sp.missingBasis} line{sp.missingBasis > 1 ? "s" : ""} booking revenue with no cost basis — combined margin is overstated until productivity is entered.
+                    </p>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+        </Section>
+
+        {/* 6 — REVERSE BID ANALYSIS */}
+        <Section index={6} title="Reverse Bid Analysis" subtitle="Enter a market bid rate to see the margin it implies — and the productivity your crew would need to hit at that price.">
           <div className="grid grid-cols-1 gap-4 p-4 lg:grid-cols-[220px_1fr] lg:items-start">
             <div className="rounded-md border border-line bg-white p-3.5">
               <Field label="Market / target bid rate" value={v.marketCentsPerLb} onChange={set("marketCentsPerLb")} step="any" suffix="¢/lb" hint={`${usd(rev.inputPerLb, 4)}/lb · ${usd(rev.inputPerTon)}/ton`} />
@@ -391,8 +576,8 @@ function Calculator() {
           </div>
         </Section>
 
-        {/* 6 — SENSITIVITY ANALYSIS */}
-        <Section index={6} title="Sensitivity Analysis" subtitle="Centered on your Section 2 productivity, ±5 rows. Holds your bid fixed and shows how margin moves as production runs faster or slower. Your planned row is highlighted.">
+        {/* 7 — SENSITIVITY ANALYSIS */}
+        <Section index={7} title="Sensitivity Analysis" subtitle="Centered on your Section 2 productivity, ±5 rows. Holds your bid fixed and shows how margin moves as production runs faster or slower. Your planned row is highlighted.">
           <div className="flex flex-col gap-2 px-4 pt-4 sm:flex-row sm:items-end sm:justify-between">
             <div className="w-full sm:max-w-[260px]">
               <Field
@@ -453,8 +638,8 @@ function Calculator() {
           </p>
         </Section>
 
-        {/* 7 — BID SUMMARY */}
-        <Section index={7} title="Bid Summary">
+        {/* 8 — BID SUMMARY */}
+        <Section index={8} title="Bid Summary">
           <div className="p-4">
             <div className="rounded-md border border-line bg-white">
               <SummaryRow k="Project" val={v.projectName || "—"} />
