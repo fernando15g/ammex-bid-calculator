@@ -124,7 +124,15 @@ function Calculator() {
   );
   const hasSpecialty = v.specialtyOn && v.specialtyLines.length > 0;
 
-  const addLine = (t) => setV((s) => ({ ...s, specialtyLines: [...s.specialtyLines, newSpecialtyLine(t)] }));
+  const toggleLine = (t) => setV((s) => {
+    const has = s.specialtyLines.some((l) => l.type === t);
+    return {
+      ...s,
+      specialtyLines: has
+        ? s.specialtyLines.filter((l) => l.type !== t)
+        : [...s.specialtyLines, newSpecialtyLine(t)],
+    };
+  });
   const removeLine = (id) => setV((s) => ({ ...s, specialtyLines: s.specialtyLines.filter((l) => l.id !== id) }));
   const updLine = (id, patch) => setV((s) => ({
     ...s, specialtyLines: s.specialtyLines.map((l) => (l.id === id ? { ...l, ...patch } : l)),
@@ -298,82 +306,8 @@ function Calculator() {
           )}
         </Section>
 
-        {/* 3 — COST BREAKDOWN */}
-        <Section index={3} title="Cost Breakdown">
-          <div className="grid grid-cols-2 gap-3 p-4 sm:grid-cols-3 lg:grid-cols-4">
-            <StatCard label="Weight" value={`${num(i.weightLb)} lb`} sub={`${num(e.weightTons, 2)} tons`} />
-            <StatCard label="Field man-hours" value={num(e.fieldMH, 1)} sub="weight ÷ productivity" />
-            <StatCard label="Total man-hours" value={num(e.totalMH, 1)} sub="incl. mobilization" />
-            <StatCard label="Crew days" value={num(e.crewDays, 1)} sub={`${num(i.crewSize)} × ${num(i.hoursPerDay)} hrs`} />
-            <StatCard label="Loaded labor rate" value={usd(e.loadedRate, 2)} sub="wage + burden" />
-            <StatCard label="Burdened labor cost" value={usd(e.directLabor)} />
-            <StatCard label="Tools / consumables" value={usd(e.tools)} />
-            <StatCard label="Contingency" value={usd(e.contingency)} />
-            <StatCard label="Fully-loaded cost" value={usd(e.totalCost)} tone="dark" />
-            <StatCard label="Breakeven / ton" value={usd(e.breakevenPerTon)} />
-          </div>
-        </Section>
-
-        {/* 4 — RECOMMENDED BID RESULTS */}
-        <Section index={4} title="Recommended Bid" subtitle={`Priced to your ${pct(i.targetMarginPct, 0)} target margin, then rounded to the nearest quarter-cent.`}>
-          {/* Hero */}
-          <div className="border-b border-line bg-steel p-5 sm:p-6">
-            <div className="flex flex-col items-start justify-between gap-5 sm:flex-row sm:items-end">
-              <div>
-                <div className="eyebrow text-[10px] text-white/55">{bidOverridden ? "Final bid (override)" : "Recommended bid"}</div>
-                <div className="tnum font-display text-5xl font-bold leading-none text-white sm:text-6xl">{usd(d.bid)}</div>
-                <div className="mt-1 text-[11px] italic text-white/40">also known as Contract Value</div>
-                <div className="mt-2 text-sm text-white/60">
-                  {num(i.weightLb)} lb · {num(e.weightTons, 2)} tons · {num(e.totalMH, 1)} labor hrs
-                </div>
-              </div>
-              <div className="dim-line w-full px-3 py-2 text-center sm:w-auto sm:min-w-[180px]">
-                <div className="eyebrow text-[10px] text-rebarLite">Bid rate</div>
-                <div className="tnum font-display text-4xl font-bold leading-none text-white">{cents(activeCents)}</div>
-                <div className="text-[11px] uppercase tracking-eyebrow text-white/45">per lb</div>
-              </div>
-            </div>
-          </div>
-
-          {/* Final bid override */}
-          <div className="flex flex-col gap-2 border-b border-line px-4 py-3 sm:flex-row sm:items-end sm:justify-between">
-            <div className="w-full sm:max-w-[240px]">
-              <Field
-                label="Final bid override"
-                value={bidOverride}
-                onChange={(x) => setBidOverride(x === "" ? "" : x)}
-                step="any"
-                suffix="¢/lb"
-                placeholder={cents(roundedCents)}
-                hint={bidOverridden ? "Using your bid · clear to return to recommended" : "Auto-rounded — type a number to override"}
-              />
-            </div>
-            <div className="pb-1 text-[11px] text-slate2/80">
-              Computed <span className="tnum font-semibold text-gunmetal">{cents(recommendedCents)}/lb</span>
-              <span className="text-slate2/50"> · </span>
-              rounded to <span className="tnum font-semibold text-gunmetal">{cents(roundedCents)}/lb</span>
-              {bidOverridden && (
-                <>
-                  <span className="text-slate2/50"> · </span>
-                  using <span className="tnum font-semibold text-rebar">{cents(activeCents)}/lb</span>
-                </>
-              )}
-            </div>
-          </div>
-
-          {/* Supporting metrics */}
-          <div className="grid grid-cols-2 gap-3 p-4 sm:grid-cols-3 lg:grid-cols-4">
-            <StatCard label="Bid rate / lb" value={usd(d.perLb, 4)} />
-            <StatCard label="Bid rate / ton" value={usd(d.perTon)} />
-            <StatCard label="Operating profit" value={usd(d.grossProfit)} sub="after costs & overhead, pre-tax" tone={d.grossProfit >= 0 ? "good" : "bad"} />
-            <StatCard label="Operating margin" value={pct(d.grossMargin)} tone={marginTone} />
-            <StatCard label="Revenue / labor hr" value={usd(d.revenuePerMH, 2)} sub="rate × productivity" />
-            <StatCard label="Profit / labor hr" value={usd(d.profitPerMH, 2)} sub="less loaded rate" />
-          </div>
-        </Section>
-
-        {/* 5 — SPECIALTY SCOPE */}
-        <Section index={5} title="Specialty Scope" subtitle="PT and mesh, priced labor-only on the same cost stack as rebar. Material is not included here.">
+        {/* 3 — SPECIALTY SCOPE */}
+        <Section index={3} title="Specialty Scope" subtitle="PT and mesh, priced labor-only on the same cost stack as rebar. Material is not included here.">
           <div className="flex items-center justify-between gap-3 px-4 py-3">
             <label className="flex cursor-pointer items-center gap-2.5">
               <input
@@ -386,16 +320,23 @@ function Calculator() {
             </label>
             {v.specialtyOn && (
               <div className="flex flex-wrap gap-1.5">
-                {SPECIALTY_TYPES.map((t) => (
-                  <button
-                    key={t}
-                    type="button"
-                    onClick={() => addLine(t)}
-                    className="rounded-md border border-line bg-white px-2.5 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-slate2 transition hover:border-rebar hover:text-rebar active:translate-y-px"
-                  >
-                    + {t}
-                  </button>
-                ))}
+                {SPECIALTY_TYPES.map((t) => {
+                  const on = v.specialtyLines.some((l) => l.type === t);
+                  return (
+                    <button
+                      key={t}
+                      type="button"
+                      onClick={() => toggleLine(t)}
+                      className={`rounded-md border px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide transition active:translate-y-px ${
+                        on
+                          ? "border-rebar bg-rebar text-white"
+                          : "border-line bg-white text-slate2 hover:border-rebar hover:text-rebar"
+                      }`}
+                    >
+                      {t}
+                    </button>
+                  );
+                })}
               </div>
             )}
           </div>
@@ -412,10 +353,18 @@ function Calculator() {
                       <div key={l.id} className="rounded-md border border-line bg-white p-3.5">
                         <div className="mb-3 flex items-center justify-between">
                           <span className="rounded bg-rebar/[0.10] px-2 py-1 text-[11px] font-semibold uppercase tracking-wide text-rebar">{l.type}</span>
-                          <button type="button" onClick={() => removeLine(l.id)} className="text-[11px] font-semibold uppercase tracking-wide text-slate2/60 hover:text-bad">Remove</button>
+                          <button type="button" onClick={() => removeLine(l.id)} className="text-[11px] font-semibold uppercase tracking-wide text-slate2/50 hover:text-bad">Remove</button>
                         </div>
 
-                        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+                        <div
+                          className={`grid gap-3 ${
+                            l.type === "PT Bridge"
+                              ? "grid-cols-1 sm:grid-cols-2"
+                              : l.type === "Mesh"
+                              ? "grid-cols-2 sm:grid-cols-3"
+                              : "grid-cols-2 sm:grid-cols-4"
+                          }`}
+                        >
                           {l.type === "PT Building" && (
                             <>
                               <Field label="Tons" value={l.tons} step="any" suffix="tn"
@@ -438,6 +387,12 @@ function Calculator() {
                                 placeholder={r.recommendedRate ? r.recommendedRate.toFixed(2) : ""}
                                 hint={r.recommendedRate ? `Recommended ${usd(r.recommendedRate, 2)}/hr` : ""}
                                 onChange={(x) => updLine(l.id, { ratePerHour: x })} />
+                              <Field label="Feet (optional)" value={l.feet} step="any" suffix="ft"
+                                hint="For cross-checking only"
+                                onChange={(x) => updLine(l.id, { feet: x })} />
+                              <Field label="Productivity (optional)" value={l.prodFtPerMH} step="any" suffix="ft/MH"
+                                hint="Fill in once you know your rate"
+                                onChange={(x) => updLine(l.id, { prodFtPerMH: x })} />
                             </>
                           )}
                           {l.type === "Mesh" && (
@@ -460,6 +415,11 @@ function Calculator() {
                           {r.hasCostBasis ? (
                             <>
                               <span className="tnum">{num(r.hours, 1)} MH</span>
+                              {r.impliedHours != null && (
+                                <span className={`tnum ${r.impliedHours < r.hours ? "text-good" : "text-warn"}`}>
+                                  your pace ≈ {num(r.impliedHours, 1)} MH
+                                </span>
+                              )}
                               <span className="tnum">cost {usd(r.cost)}</span>
                               <span className="tnum">revenue {usd(r.revenue)}</span>
                               <span className={`tnum font-semibold ${r.margin >= i.targetMarginPct ? "text-good" : "text-warn"}`}>
@@ -531,6 +491,80 @@ function Calculator() {
               )}
             </div>
           )}
+        </Section>
+
+        {/* 4 — COST BREAKDOWN */}
+        <Section index={4} title="Cost Breakdown">
+          <div className="grid grid-cols-2 gap-3 p-4 sm:grid-cols-3 lg:grid-cols-4">
+            <StatCard label="Weight" value={`${num(i.weightLb)} lb`} sub={`${num(e.weightTons, 2)} tons`} />
+            <StatCard label="Field man-hours" value={num(e.fieldMH, 1)} sub="weight ÷ productivity" />
+            <StatCard label="Total man-hours" value={num(e.totalMH, 1)} sub="incl. mobilization" />
+            <StatCard label="Crew days" value={num(e.crewDays, 1)} sub={`${num(i.crewSize)} × ${num(i.hoursPerDay)} hrs`} />
+            <StatCard label="Loaded labor rate" value={usd(e.loadedRate, 2)} sub="wage + burden" />
+            <StatCard label="Burdened labor cost" value={usd(e.directLabor)} />
+            <StatCard label="Tools / consumables" value={usd(e.tools)} />
+            <StatCard label="Contingency" value={usd(e.contingency)} />
+            <StatCard label="Fully-loaded cost" value={usd(e.totalCost)} tone="dark" />
+            <StatCard label="Breakeven / ton" value={usd(e.breakevenPerTon)} />
+          </div>
+        </Section>
+
+        {/* 5 — RECOMMENDED BID RESULTS */}
+        <Section index={5} title="Recommended Bid" subtitle={`Priced to your ${pct(i.targetMarginPct, 0)} target margin, then rounded to the nearest quarter-cent.`}>
+          {/* Hero */}
+          <div className="border-b border-line bg-steel p-5 sm:p-6">
+            <div className="flex flex-col items-start justify-between gap-5 sm:flex-row sm:items-end">
+              <div>
+                <div className="eyebrow text-[10px] text-white/55">{bidOverridden ? "Final bid (override)" : "Recommended bid"}</div>
+                <div className="tnum font-display text-5xl font-bold leading-none text-white sm:text-6xl">{usd(d.bid)}</div>
+                <div className="mt-1 text-[11px] italic text-white/40">also known as Contract Value</div>
+                <div className="mt-2 text-sm text-white/60">
+                  {num(i.weightLb)} lb · {num(e.weightTons, 2)} tons · {num(e.totalMH, 1)} labor hrs
+                </div>
+              </div>
+              <div className="dim-line w-full px-3 py-2 text-center sm:w-auto sm:min-w-[180px]">
+                <div className="eyebrow text-[10px] text-rebarLite">Bid rate</div>
+                <div className="tnum font-display text-4xl font-bold leading-none text-white">{cents(activeCents)}</div>
+                <div className="text-[11px] uppercase tracking-eyebrow text-white/45">per lb</div>
+              </div>
+            </div>
+          </div>
+
+          {/* Final bid override */}
+          <div className="flex flex-col gap-2 border-b border-line px-4 py-3 sm:flex-row sm:items-end sm:justify-between">
+            <div className="w-full sm:max-w-[240px]">
+              <Field
+                label="Final bid override"
+                value={bidOverride}
+                onChange={(x) => setBidOverride(x === "" ? "" : x)}
+                step="any"
+                suffix="¢/lb"
+                placeholder={cents(roundedCents)}
+                hint={bidOverridden ? "Using your bid · clear to return to recommended" : "Auto-rounded — type a number to override"}
+              />
+            </div>
+            <div className="pb-1 text-[11px] text-slate2/80">
+              Computed <span className="tnum font-semibold text-gunmetal">{cents(recommendedCents)}/lb</span>
+              <span className="text-slate2/50"> · </span>
+              rounded to <span className="tnum font-semibold text-gunmetal">{cents(roundedCents)}/lb</span>
+              {bidOverridden && (
+                <>
+                  <span className="text-slate2/50"> · </span>
+                  using <span className="tnum font-semibold text-rebar">{cents(activeCents)}/lb</span>
+                </>
+              )}
+            </div>
+          </div>
+
+          {/* Supporting metrics */}
+          <div className="grid grid-cols-2 gap-3 p-4 sm:grid-cols-3 lg:grid-cols-4">
+            <StatCard label="Bid rate / lb" value={usd(d.perLb, 4)} />
+            <StatCard label="Bid rate / ton" value={usd(d.perTon)} />
+            <StatCard label="Operating profit" value={usd(d.grossProfit)} sub="after costs & overhead, pre-tax" tone={d.grossProfit >= 0 ? "good" : "bad"} />
+            <StatCard label="Operating margin" value={pct(d.grossMargin)} tone={marginTone} />
+            <StatCard label="Revenue / labor hr" value={usd(d.revenuePerMH, 2)} sub="rate × productivity" />
+            <StatCard label="Profit / labor hr" value={usd(d.profitPerMH, 2)} sub="less loaded rate" />
+          </div>
         </Section>
 
         {/* 6 — REVERSE BID ANALYSIS */}
