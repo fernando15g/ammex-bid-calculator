@@ -40,6 +40,7 @@ const multiProp = (arr) => {
 };
 
 export async function POST(request) {
+  const wantDebug = (() => { try { return new URL(request.url).searchParams.get("debug") === "1"; } catch { return false; } })();
   const token = process.env.NOTION_TOKEN;
   const databaseId = process.env.NOTION_DATABASE_ID;
 
@@ -57,9 +58,6 @@ export async function POST(request) {
     return Response.json({ ok: false, error: "Invalid request body." }, { status: 400 });
   }
 
-  // TEMP DIAGNOSTIC LOGGING
-  console.log("[save] incoming body keys:", Object.keys(body || {}));
-  console.log("[save] gc:", JSON.stringify(body?.gc), "| cityCounty:", JSON.stringify(body?.cityCounty), "| fabricator:", JSON.stringify(body?.fabricator), "| projectType:", JSON.stringify(body?.projectType));
 
   const {
     projectName, estimatedLbs, lbsPerMH, crewSize, laborRate, bidRatePerLb, notes,
@@ -122,12 +120,6 @@ export async function POST(request) {
 
     const data = await res.json();
 
-    // TEMP DIAGNOSTIC LOGGING
-    console.log("[save] sent properties keys:", Object.keys(properties));
-    console.log("[save] GC prop sent:", JSON.stringify(properties["GC"]));
-    console.log("[save] City/County prop sent:", JSON.stringify(properties["City/County"]));
-    console.log("[save] Notion status:", res.status, "ok:", res.ok);
-    if (!res.ok) console.log("[save] Notion error:", JSON.stringify(data));
 
     if (!res.ok) {
       // Surface Notion's own message so property-name mismatches are easy to spot.
@@ -139,14 +131,14 @@ export async function POST(request) {
 
     return Response.json({
       ok: true, id: data.id, url: data.url,
-      _debug: {
+      ...(wantDebug ? { _debug: {
         received: { gc: body?.gc, cityCounty: body?.cityCounty, fabricator: body?.fabricator, projectType: body?.projectType },
         sentGC: properties["GC"],
         sentCity: properties["City/County"],
         sentFab: properties["Fabricator"],
         sentType: properties["Project Type"],
         notionReturnedProps: Object.keys(data?.properties || {}),
-      },
+      } } : {}),
     });
   } catch (err) {
     return Response.json({ ok: false, error: "Could not reach Notion. Check your connection and try again." }, { status: 502 });

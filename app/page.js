@@ -132,6 +132,9 @@ function Calculator() {
   // Save the bid's raw inputs as a new row in the Notion Bid Tracker.
   const [notionStatus, setNotionStatus] = useState("idle"); // idle | saving | saved | error
   const [notionMsg, setNotionMsg] = useState("");
+  const [debugOn, setDebugOn] = useState(false); // set window.__ammexDebug=true then save to see payload
+
+  useEffect(() => { if (typeof window !== "undefined" && window.__ammexDebug) setDebugOn(true); }, []);
 
   // Live option lists, pulled from Notion so the dropdowns always match.
   const [projectTypeOptions, setProjectTypeOptions] = useState(null); // null = loading
@@ -152,7 +155,7 @@ function Calculator() {
     setNotionStatus("saving");
     setNotionMsg("");
     try {
-      const res = await fetch("/api/save-to-notion", {
+      const res = await fetch(`/api/save-to-notion${debugOn ? "?debug=1" : ""}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -189,7 +192,7 @@ function Calculator() {
       const data = await res.json();
       if (data.ok) {
         setNotionStatus("saved"); // stays until the next edit (see set())
-        if (data._debug) { setNotionMsg("DEBUG: " + JSON.stringify(data._debug)); console.log("SAVE DEBUG", data._debug); }
+        if (debugOn && data._debug) { setNotionMsg("DEBUG: " + JSON.stringify(data._debug)); console.log("SAVE DEBUG", data._debug); }
       } else {
         setNotionStatus("error");
         setNotionMsg(data.error || "Save failed.");
@@ -720,7 +723,7 @@ function Calculator() {
                   {v.projectName ? `“${v.projectName}” ` : ""}booked at {cents(activeCents)}/lb · {usd(hasSpecialty ? sp.totalRevenue : d.bid)}
                   {hasSpecialty ? " (rebar + specialty)" : ""}. A new row was created in the Bid Tracker.
                 </span>
-                {notionMsg && <p className="mt-2 break-all text-[10px] text-slate2/70">{notionMsg}</p>}
+                {debugOn && notionMsg && <p className="mt-2 break-all text-[10px] text-slate2/70">{notionMsg}</p>}
               </div>
             )}
             {notionStatus === "error" && (
