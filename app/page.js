@@ -189,6 +189,7 @@ function Calculator() {
       const data = await res.json();
       if (data.ok) {
         setNotionStatus("saved"); // stays until the next edit (see set())
+        if (data._debug) { setNotionMsg("DEBUG: " + JSON.stringify(data._debug)); console.log("SAVE DEBUG", data._debug); }
       } else {
         setNotionStatus("error");
         setNotionMsg(data.error || "Save failed.");
@@ -719,6 +720,7 @@ function Calculator() {
                   {v.projectName ? `“${v.projectName}” ` : ""}booked at {cents(activeCents)}/lb · {usd(hasSpecialty ? sp.totalRevenue : d.bid)}
                   {hasSpecialty ? " (rebar + specialty)" : ""}. A new row was created in the Bid Tracker.
                 </span>
+                {notionMsg && <p className="mt-2 break-all text-[10px] text-slate2/70">{notionMsg}</p>}
               </div>
             )}
             {notionStatus === "error" && (
