@@ -777,18 +777,23 @@ function SearchSelect({ label, value, onChange, options, multi = false, placehol
     return () => document.removeEventListener("mousedown", onDoc);
   }, []);
 
+  const close = () => { setOpen(false); setAdding(false); setQ(""); };
   const pick = (o) => {
     if (multi) {
       const has = selected.includes(o);
-      onChange(has ? selected.filter((x) => x !== o) : [...selected, o]);
+      if (has) {
+        onChange(selected.filter((x) => x !== o)); // deselect: keep open
+      } else {
+        onChange([...selected, o]); close(); // add: close (reopen to add another)
+      }
     } else {
-      onChange(o); setOpen(false); setQ("");
+      onChange(o); close();
     }
   };
   const commitNew = () => {
     const t = draft.trim();
-    if (t) { if (multi) onChange([...selected, t]); else { onChange(t); setOpen(false); } }
-    setDraft(""); setAdding(false); setQ("");
+    if (t) onChange(multi ? [...selected, t] : t);
+    setDraft(""); close();
   };
 
   const summary = selected.length === 0 ? "" : multi ? selected.join(", ") : selected[0];
@@ -855,11 +860,7 @@ function SearchSelect({ label, value, onChange, options, multi = false, placehol
                 </button>
               )}
             </div>
-            {multi && (
-              <div className="border-t border-line px-3 py-1.5 text-right">
-                <button type="button" onClick={() => setOpen(false)} className="text-[11px] font-semibold uppercase tracking-wide text-slate2">Done</button>
-              </div>
-            )}
+
           </div>
         )}
       </div>
