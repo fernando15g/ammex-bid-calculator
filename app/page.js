@@ -17,19 +17,6 @@ import {
 } from "@/lib/calc";
 import { usd, num, pct, cents } from "@/lib/format";
 
-const PROJECT_TYPES = [
-  "Bridge",
-  "Box Culvert",
-  "Drainage Structure",
-  "Industrial Building",
-  "Warehouse",
-  "Multifamily",
-  "Site Structure",
-  "Retaining Wall",
-  "PT Structure",
-  "Other",
-];
-
 const FABRICATORS = ["Tyler Reinforcing", "CMC", "Self-Performing"];
 
 export default function Page() {
@@ -71,7 +58,6 @@ function Calculator() {
     setV((s) => ({
       ...s,
       projectName: "",
-      projectNumber: "",
       client: "",
       cityCounty: "",
       bidDueDate: "",
@@ -144,6 +130,17 @@ function Calculator() {
   const [notionStatus, setNotionStatus] = useState("idle"); // idle | saving | saved | error
   const [notionMsg, setNotionMsg] = useState("");
 
+  // Live Project Type options, pulled from Notion so the dropdown always matches.
+  const [projectTypeOptions, setProjectTypeOptions] = useState(null); // null = loading
+  useEffect(() => {
+    let alive = true;
+    fetch("/api/project-types")
+      .then((r) => r.json())
+      .then((d) => { if (alive) setProjectTypeOptions(d.ok ? d.options : []); })
+      .catch(() => { if (alive) setProjectTypeOptions([]); });
+    return () => { alive = false; };
+  }, []);
+
   async function saveToNotion() {
     setNotionStatus("saving");
     setNotionMsg("");
@@ -162,6 +159,7 @@ function Calculator() {
           cityCounty: v.cityCounty,
           bidDueDate: v.bidDueDate,
           fabricator: v.fabricator,
+          projectType: v.projectType,
           notes: v.notes,
           // computed from the active bid (what you actually see/save)
           operatingProfit: Number(sp.totalProfit.toFixed(2)),
@@ -199,7 +197,6 @@ function Calculator() {
     const lines = [
       `AMMEX REBAR — BID SUMMARY`,
       v.projectName ? `Project: ${v.projectName}` : null,
-      v.projectNumber ? `Project #: ${v.projectNumber}` : null,
       v.client ? `GC: ${v.client}` : null,
       v.fabricator && v.fabricator.length ? `Fabricator: ${v.fabricator.join(", ")}` : null,
       v.cityCounty ? `City/County: ${v.cityCounty}` : null,
@@ -253,11 +250,10 @@ function Calculator() {
           </div>
           <div className="grid grid-cols-1 gap-4 p-4 sm:grid-cols-2">
             <Field label="Project name" type="text" value={v.projectName} onChange={set("projectName")} placeholder="e.g. SR-101 Box Culvert" />
-            <Field label="Project number" type="text" value={v.projectNumber} onChange={set("projectNumber")} placeholder="Optional" />
             <Field label="GC" type="text" value={v.client} onChange={set("client")} placeholder="General contractor" />
             <Field label="City / County" type="text" value={v.cityCounty} onChange={set("cityCounty")} placeholder="e.g. Maricopa County" />
             <Field label="Bid due date" type="date" value={v.bidDueDate} onChange={set("bidDueDate")} />
-            <Field label="Project type" value={v.projectType} onChange={set("projectType")} options={PROJECT_TYPES} />
+            <ProjectTypePicker value={v.projectType} onChange={set("projectType")} options={projectTypeOptions} />
             <div className="sm:col-span-2">
               <FabricatorPicker value={v.fabricator} onChange={set("fabricator")} />
             </div>
@@ -677,7 +673,6 @@ function Calculator() {
           <div className="p-4">
             <div className="rounded-md border border-line bg-white">
               <SummaryRow k="Project" val={v.projectName || "—"} />
-              {v.projectNumber && <SummaryRow k="Project #" val={v.projectNumber} />}
               {v.client && <SummaryRow k="GC" val={v.client} />}
               {v.fabricator && v.fabricator.length > 0 && <SummaryRow k="Fabricator" val={v.fabricator.join(", ")} />}
               {v.cityCounty && <SummaryRow k="City / County" val={v.cityCounty} />}
@@ -755,6 +750,58 @@ function ProdCard({ label, prod, planned, breakeven }) {
       <div className="tnum mt-1.5 font-display text-2xl font-semibold leading-none">{value}</div>
       <div className="mt-1 text-[11px] leading-snug text-slate2/70">{note}</div>
     </div>
+  );
+}
+
+function ProjectTypePicker({ value, onChange, options }) {
+  const [adding, setAdding] = useState(false);
+  const [draft, setDraft] = useState("");
+  const loading = options === null;
+  const list = Array.isArray(options) ? options : [];
+  // Make sure the current value always appears even if it's not (yet) in Notion.
+  const shown = value && !list.includes(value) ? [value, ...list] : list;
+
+  const commitNew = () => {
+    const t = draft.trim();
+    if (t) onChange(t); // saved as a tag; Notion auto-creates it on save
+    setDraft(""); setAdding(false);
+  };
+
+  return (
+    <label className="block">
+      <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-slate2">Project type</span>
+      {adding ? (
+        <div className="flex gap-2">
+          <input
+            autoFocus
+            className="w-full rounded-md border border-line bg-white px-3 py-2.5 text-[15px] text-gunmetal outline-none focus:border-rebar focus:ring-2 focus:ring-rebar/20"
+            placeholder="New project type"
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter") commitNew(); if (e.key === "Escape") { setAdding(false); setDraft(""); } }}
+          />
+          <button type="button" onClick={commitNew} className="rounded-md bg-rebar px-3 text-[11px] font-semibold uppercase tracking-wide text-white">Add</button>
+          <button type="button" onClick={() => { setAdding(false); setDraft(""); }} className="rounded-md border border-line px-3 text-[11px] font-semibold uppercase tracking-wide text-slate2">Cancel</button>
+        </div>
+      ) : (
+        <div className="relative flex items-center">
+          <select
+            className="w-full appearance-none rounded-md border border-line bg-white px-3 py-2.5 pr-9 text-[15px] text-gunmetal outline-none focus:border-rebar focus:ring-2 focus:ring-rebar/20"
+            value={value || ""}
+            disabled={loading}
+            onChange={(e) => { if (e.target.value === "__add__") setAdding(true); else onChange(e.target.value); }}
+          >
+            <option value="">{loading ? "Loading types…" : "Select a type"}</option>
+            {shown.map((o) => <option key={o} value={o}>{o}</option>)}
+            <option value="__add__">+ Add new type…</option>
+          </select>
+          <span className="pointer-events-none absolute right-3 text-slate2">▾</span>
+        </div>
+      )}
+      <span className="mt-1 block text-[11px] text-slate2/70">
+        {loading ? "Pulling options from Notion…" : "Pulled live from Notion · add a new one anytime"}
+      </span>
+    </label>
   );
 }
 

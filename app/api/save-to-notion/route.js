@@ -52,7 +52,7 @@ export async function POST(request) {
 
   const {
     projectName, estimatedLbs, lbsPerMH, crewSize, laborRate, bidRatePerLb, notes,
-    gc, cityCounty, bidDueDate, fabricator,
+    gc, cityCounty, bidDueDate, fabricator, projectType,
     // computed dollars/margin (from the active/rounded bid)
     operatingProfit, operatingMargin, fullyLoadedCost, burdenedLaborCost,
     // assumptions used on this bid
@@ -77,6 +77,7 @@ export async function POST(request) {
     "City/County": textProp(cityCounty),
     "Bid Due Date": dateProp(bidDueDate),
     "Fabricator": multiProp(fabricator),
+    "Project Type": multiProp(projectType ? [projectType] : []),
     "Notes": textProp(notes),
     // Authoritative computed values from this bid (Number columns)
     "Operating Profit (calc)": numProp(operatingProfit),
