@@ -28,9 +28,16 @@ const dateProp = (s) => {
   return { date: v ? { start: v } : null };
 };
 // Notion multi-select wants a list of { name }; reuses existing tags by name.
-const multiProp = (arr) => ({
-  multi_select: (Array.isArray(arr) ? arr : []).filter(Boolean).map((name) => ({ name: String(name) })),
-});
+const multiProp = (arr) => {
+  const flat = (Array.isArray(arr) ? arr : [arr]).flat(Infinity);
+  return {
+    multi_select: flat
+      .filter(Boolean)
+      // Notion forbids commas in multi-select option names — strip to avoid 400s.
+      .map((name) => ({ name: String(name).replace(/,/g, " ").trim() }))
+      .filter((o) => o.name !== ""),
+  };
+};
 
 export async function POST(request) {
   const token = process.env.NOTION_TOKEN;
@@ -73,7 +80,7 @@ export async function POST(request) {
     "Estimated Crew Size": numProp(crewSize),
     "Base Wage Rate": numProp(laborRate),
     "Bid Rate ($/LB)": numProp(bidRatePerLb),
-    "GC": multiProp([gc]),
+    "GC": multiProp(gc),
     "City/County": textProp(cityCounty),
     "Bid Due Date": dateProp(bidDueDate),
     "Fabricator": multiProp(fabricator),

@@ -33,7 +33,10 @@ function Calculator() {
   const [v, setV] = useState(DEFAULTS);
   const [loaded, setLoaded] = useState(false);
   const [copied, setCopied] = useState(false);
-  const set = (k) => (val) => setV((s) => ({ ...s, [k]: val }));
+  const set = (k) => (val) => {
+    if (notionStatus === "saved") setNotionStatus("idle"); // clear confirmation on edit
+    setV((s) => ({ ...s, [k]: val }));
+  };
 
   // Load the last saved entries on open (per-device, this browser only).
   useEffect(() => {
@@ -185,8 +188,7 @@ function Calculator() {
       });
       const data = await res.json();
       if (data.ok) {
-        setNotionStatus("saved");
-        setTimeout(() => setNotionStatus("idle"), 3000);
+        setNotionStatus("saved"); // stays until the next edit (see set())
       } else {
         setNotionStatus("error");
         setNotionMsg(data.error || "Save failed.");
@@ -700,8 +702,8 @@ function Calculator() {
                 {notionStatus === "saving"
                   ? "Saving…"
                   : notionStatus === "saved"
-                  ? "Saved to Notion ✓"
-                  : "Save bid to Notion"}
+                  ? "Saved to OS ✓"
+                  : "Save to OS"}
               </button>
               <button
                 onClick={copySummary}
@@ -710,6 +712,15 @@ function Calculator() {
                 {copied ? "Copied ✓" : "Copy to clipboard"}
               </button>
             </div>
+            {notionStatus === "saved" && (
+              <div className="mt-3 rounded-md border border-good/30 bg-good/[0.08] px-4 py-3 text-sm text-good">
+                <span className="font-semibold">Saved to OS ✓</span>{" "}
+                <span className="text-good/90">
+                  {v.projectName ? `“${v.projectName}” ` : ""}booked at {cents(activeCents)}/lb · {usd(hasSpecialty ? sp.totalRevenue : d.bid)}
+                  {hasSpecialty ? " (rebar + specialty)" : ""}. A new row was created in the Bid Tracker.
+                </span>
+              </div>
+            )}
             {notionStatus === "error" && (
               <p className="mt-2 text-sm text-bad">{notionMsg}</p>
             )}
