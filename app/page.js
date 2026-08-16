@@ -799,7 +799,7 @@ function SearchSelect({ label, value, onChange, options, multi = false, placehol
   const summary = selected.length === 0 ? "" : multi ? selected.join(", ") : selected[0];
 
   return (
-    <label className="block" ref={boxRef}>
+    <div className="block" ref={boxRef}>
       <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-slate2">{label}</span>
       <div className="relative">
         <button
@@ -867,7 +867,7 @@ function SearchSelect({ label, value, onChange, options, multi = false, placehol
       <span className="mt-1 block text-[11px] text-slate2/70">
         {loading ? "Pulling options from Notion…" : "Pulled live from Notion · search or add new"}
       </span>
-    </label>
+    </div>
   );
 }
 function FabricatorPicker({ value, onChange }) {
