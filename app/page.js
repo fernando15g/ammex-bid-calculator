@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import PasswordGate from "@/components/PasswordGate";
 import { Section, Field, StatCard } from "@/components/ui";
 import {
@@ -58,7 +58,7 @@ function Calculator() {
     setV((s) => ({
       ...s,
       projectName: "",
-      client: "",
+      client: [],
       cityCounty: "",
       bidDueDate: "",
       fabricator: [],
@@ -130,14 +130,18 @@ function Calculator() {
   const [notionStatus, setNotionStatus] = useState("idle"); // idle | saving | saved | error
   const [notionMsg, setNotionMsg] = useState("");
 
-  // Live Project Type options, pulled from Notion so the dropdown always matches.
+  // Live option lists, pulled from Notion so the dropdowns always match.
   const [projectTypeOptions, setProjectTypeOptions] = useState(null); // null = loading
+  const [gcOptions, setGcOptions] = useState(null);
   useEffect(() => {
     let alive = true;
-    fetch("/api/project-types")
-      .then((r) => r.json())
-      .then((d) => { if (alive) setProjectTypeOptions(d.ok ? d.options : []); })
-      .catch(() => { if (alive) setProjectTypeOptions([]); });
+    const load = (prop, set) =>
+      fetch(`/api/select-options?prop=${encodeURIComponent(prop)}`)
+        .then((r) => r.json())
+        .then((d) => { if (alive) set(d.ok ? d.options : []); })
+        .catch(() => { if (alive) set([]); });
+    load("Project Type", setProjectTypeOptions);
+    load("GC", setGcOptions);
     return () => { alive = false; };
   }, []);
 
@@ -155,7 +159,7 @@ function Calculator() {
           crewSize: i.crewSize,
           laborRate: i.wageRate,
           bidRatePerLb: Number(d.perLb.toFixed(4)), // active (rounded/override) bid, $/lb
-          gc: v.client,
+          gc: Array.isArray(v.client) ? v.client : (v.client ? [v.client] : []),
           cityCounty: v.cityCounty,
           bidDueDate: v.bidDueDate,
           fabricator: v.fabricator,
@@ -197,7 +201,7 @@ function Calculator() {
     const lines = [
       `AMMEX REBAR — BID SUMMARY`,
       v.projectName ? `Project: ${v.projectName}` : null,
-      v.client ? `GC: ${v.client}` : null,
+      (Array.isArray(v.client) ? v.client.length : v.client) ? `GC: ${Array.isArray(v.client) ? v.client.join(", ") : v.client}` : null,
       v.fabricator && v.fabricator.length ? `Fabricator: ${v.fabricator.join(", ")}` : null,
       v.cityCounty ? `City/County: ${v.cityCounty}` : null,
       v.bidDueDate ? `Bid due: ${v.bidDueDate}` : null,
@@ -250,10 +254,10 @@ function Calculator() {
           </div>
           <div className="grid grid-cols-1 gap-4 p-4 sm:grid-cols-2">
             <Field label="Project name" type="text" value={v.projectName} onChange={set("projectName")} placeholder="e.g. SR-101 Box Culvert" />
-            <Field label="GC" type="text" value={v.client} onChange={set("client")} placeholder="General contractor" />
+            <SearchSelect label="GC" value={v.client} onChange={set("client")} options={gcOptions} multi placeholder="Select GC(s)" addLabel="+ Add new GC" />
             <Field label="City / County" type="text" value={v.cityCounty} onChange={set("cityCounty")} placeholder="e.g. Maricopa County" />
             <Field label="Bid due date" type="date" value={v.bidDueDate} onChange={set("bidDueDate")} />
-            <ProjectTypePicker value={v.projectType} onChange={set("projectType")} options={projectTypeOptions} />
+            <SearchSelect label="Project type" value={v.projectType} onChange={set("projectType")} options={projectTypeOptions} placeholder="Select a type" addLabel="+ Add new type" />
             <div className="sm:col-span-2">
               <FabricatorPicker value={v.fabricator} onChange={set("fabricator")} />
             </div>
@@ -673,7 +677,7 @@ function Calculator() {
           <div className="p-4">
             <div className="rounded-md border border-line bg-white">
               <SummaryRow k="Project" val={v.projectName || "—"} />
-              {v.client && <SummaryRow k="GC" val={v.client} />}
+              {(Array.isArray(v.client) ? v.client.length > 0 : !!v.client) && <SummaryRow k="GC" val={Array.isArray(v.client) ? v.client.join(", ") : v.client} />}
               {v.fabricator && v.fabricator.length > 0 && <SummaryRow k="Fabricator" val={v.fabricator.join(", ")} />}
               {v.cityCounty && <SummaryRow k="City / County" val={v.cityCounty} />}
               {v.bidDueDate && <SummaryRow k="Bid due" val={v.bidDueDate} />}
@@ -753,58 +757,118 @@ function ProdCard({ label, prod, planned, breakeven }) {
   );
 }
 
-function ProjectTypePicker({ value, onChange, options }) {
+function SearchSelect({ label, value, onChange, options, multi = false, placeholder = "Select", addLabel = "+ Add new" }) {
+  const [open, setOpen] = useState(false);
+  const [q, setQ] = useState("");
   const [adding, setAdding] = useState(false);
   const [draft, setDraft] = useState("");
+  const boxRef = useRef(null);
+
   const loading = options === null;
   const list = Array.isArray(options) ? options : [];
-  // Make sure the current value always appears even if it's not (yet) in Notion.
-  const shown = value && !list.includes(value) ? [value, ...list] : list;
+  const selected = multi ? (Array.isArray(value) ? value : value ? [value] : []) : value ? [value] : [];
+  // ensure current selections always show even if not (yet) in Notion's list
+  const full = [...new Set([...selected, ...list])];
+  const filtered = full.filter((o) => o.toLowerCase().includes(q.trim().toLowerCase()));
 
+  useEffect(() => {
+    const onDoc = (e) => { if (boxRef.current && !boxRef.current.contains(e.target)) { setOpen(false); setAdding(false); setQ(""); } };
+    document.addEventListener("mousedown", onDoc);
+    return () => document.removeEventListener("mousedown", onDoc);
+  }, []);
+
+  const pick = (o) => {
+    if (multi) {
+      const has = selected.includes(o);
+      onChange(has ? selected.filter((x) => x !== o) : [...selected, o]);
+    } else {
+      onChange(o); setOpen(false); setQ("");
+    }
+  };
   const commitNew = () => {
     const t = draft.trim();
-    if (t) onChange(t); // saved as a tag; Notion auto-creates it on save
-    setDraft(""); setAdding(false);
+    if (t) { if (multi) onChange([...selected, t]); else { onChange(t); setOpen(false); } }
+    setDraft(""); setAdding(false); setQ("");
   };
 
+  const summary = selected.length === 0 ? "" : multi ? selected.join(", ") : selected[0];
+
   return (
-    <label className="block">
-      <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-slate2">Project type</span>
-      {adding ? (
-        <div className="flex gap-2">
-          <input
-            autoFocus
-            className="w-full rounded-md border border-line bg-white px-3 py-2.5 text-[15px] text-gunmetal outline-none focus:border-rebar focus:ring-2 focus:ring-rebar/20"
-            placeholder="New project type"
-            value={draft}
-            onChange={(e) => setDraft(e.target.value)}
-            onKeyDown={(e) => { if (e.key === "Enter") commitNew(); if (e.key === "Escape") { setAdding(false); setDraft(""); } }}
-          />
-          <button type="button" onClick={commitNew} className="rounded-md bg-rebar px-3 text-[11px] font-semibold uppercase tracking-wide text-white">Add</button>
-          <button type="button" onClick={() => { setAdding(false); setDraft(""); }} className="rounded-md border border-line px-3 text-[11px] font-semibold uppercase tracking-wide text-slate2">Cancel</button>
-        </div>
-      ) : (
-        <div className="relative flex items-center">
-          <select
-            className="w-full appearance-none rounded-md border border-line bg-white px-3 py-2.5 pr-9 text-[15px] text-gunmetal outline-none focus:border-rebar focus:ring-2 focus:ring-rebar/20"
-            value={value || ""}
-            disabled={loading}
-            onChange={(e) => { if (e.target.value === "__add__") setAdding(true); else onChange(e.target.value); }}
-          >
-            <option value="">{loading ? "Loading types…" : "Select a type"}</option>
-            {shown.map((o) => <option key={o} value={o}>{o}</option>)}
-            <option value="__add__">+ Add new type…</option>
-          </select>
-          <span className="pointer-events-none absolute right-3 text-slate2">▾</span>
-        </div>
-      )}
+    <label className="block" ref={boxRef}>
+      <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-slate2">{label}</span>
+      <div className="relative">
+        <button
+          type="button"
+          onClick={() => !loading && setOpen((o) => !o)}
+          className="flex w-full items-center justify-between rounded-md border border-line bg-white px-3 py-2.5 text-left text-[15px] text-gunmetal outline-none focus:border-rebar focus:ring-2 focus:ring-rebar/20"
+        >
+          <span className={summary ? "" : "text-slate2/50"}>{loading ? "Loading…" : summary || placeholder}</span>
+          <span className="text-slate2">▾</span>
+        </button>
+
+        {open && !loading && (
+          <div className="absolute z-20 mt-1 w-full rounded-md border border-line bg-white shadow-lg">
+            <div className="border-b border-line p-2">
+              <input
+                autoFocus
+                className="w-full rounded border border-line px-2.5 py-1.5 text-sm outline-none focus:border-rebar"
+                placeholder="Search…"
+                value={q}
+                onChange={(e) => setQ(e.target.value)}
+              />
+            </div>
+            <div className="max-h-56 overflow-y-auto py-1">
+              {filtered.length === 0 && !adding && (
+                <div className="px-3 py-2 text-sm text-slate2/60">No matches</div>
+              )}
+              {filtered.map((o) => {
+                const on = selected.includes(o);
+                return (
+                  <button
+                    key={o}
+                    type="button"
+                    onClick={() => pick(o)}
+                    className={`flex w-full items-center justify-between px-3 py-2 text-left text-sm hover:bg-paper ${on ? "text-rebar font-semibold" : "text-gunmetal"}`}
+                  >
+                    <span>{o}</span>
+                    {on && <span>✓</span>}
+                  </button>
+                );
+              })}
+            </div>
+            <div className="border-t border-line p-2">
+              {adding ? (
+                <div className="flex gap-2">
+                  <input
+                    autoFocus
+                    className="w-full rounded border border-line px-2.5 py-1.5 text-sm outline-none focus:border-rebar"
+                    placeholder="New name"
+                    value={draft}
+                    onChange={(e) => setDraft(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === "Enter") commitNew(); if (e.key === "Escape") { setAdding(false); setDraft(""); } }}
+                  />
+                  <button type="button" onClick={commitNew} className="rounded bg-rebar px-3 text-[11px] font-semibold uppercase tracking-wide text-white">Add</button>
+                </div>
+              ) : (
+                <button type="button" onClick={() => setAdding(true)} className="w-full rounded px-2 py-1.5 text-left text-[13px] font-semibold text-rebar hover:bg-paper">
+                  {addLabel}
+                </button>
+              )}
+            </div>
+            {multi && (
+              <div className="border-t border-line px-3 py-1.5 text-right">
+                <button type="button" onClick={() => setOpen(false)} className="text-[11px] font-semibold uppercase tracking-wide text-slate2">Done</button>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
       <span className="mt-1 block text-[11px] text-slate2/70">
-        {loading ? "Pulling options from Notion…" : "Pulled live from Notion · add a new one anytime"}
+        {loading ? "Pulling options from Notion…" : "Pulled live from Notion · search or add new"}
       </span>
     </label>
   );
 }
-
 function FabricatorPicker({ value, onChange }) {
   const sel = Array.isArray(value) ? value : [];
   const toggle = (name) => {
