@@ -64,6 +64,7 @@ function Calculator() {
       client: [],
       cityCounty: "",
       bidDueDate: "",
+      submissionDate: "",
       fabricator: [],
       projectType: "Other",
       notes: "",
@@ -168,6 +169,7 @@ function Calculator() {
           gc: Array.isArray(v.client) ? v.client : (v.client ? [v.client] : []),
           cityCounty: v.cityCounty,
           bidDueDate: v.bidDueDate,
+          submissionDate: v.submissionDate,
           fabricator: v.fabricator,
           projectType: v.projectType,
           notes: v.notes,
@@ -211,6 +213,7 @@ function Calculator() {
       v.fabricator && v.fabricator.length ? `Fabricator: ${v.fabricator.join(", ")}` : null,
       v.cityCounty ? `City/County: ${v.cityCounty}` : null,
       v.bidDueDate ? `Bid due: ${v.bidDueDate}` : null,
+      v.submissionDate ? `Submitted: ${v.submissionDate}` : null,
       `Project type: ${v.projectType}`,
       ``,
       `Weight: ${num(i.weightLb)} lb (${num(e.weightTons, 2)} tons)`,
@@ -263,6 +266,7 @@ function Calculator() {
             <SearchSelect label="GC" value={v.client} onChange={set("client")} options={gcOptions} multi placeholder="Select GC(s)" addLabel="+ Add new GC" />
             <Field label="City / County" type="text" value={v.cityCounty} onChange={set("cityCounty")} placeholder="e.g. Maricopa County" />
             <Field label="Bid due date" type="date" value={v.bidDueDate} onChange={set("bidDueDate")} />
+            <Field label="Submission date" type="date" value={v.submissionDate} onChange={set("submissionDate")} />
             <SearchSelect label="Project type" value={v.projectType} onChange={set("projectType")} options={projectTypeOptions} placeholder="Select a type" addLabel="+ Add new type" />
             <div className="sm:col-span-2">
               <FabricatorPicker value={v.fabricator} onChange={set("fabricator")} />
@@ -687,6 +691,7 @@ function Calculator() {
               {v.fabricator && v.fabricator.length > 0 && <SummaryRow k="Fabricator" val={v.fabricator.join(", ")} />}
               {v.cityCounty && <SummaryRow k="City / County" val={v.cityCounty} />}
               {v.bidDueDate && <SummaryRow k="Bid due" val={v.bidDueDate} />}
+              {v.submissionDate && <SummaryRow k="Submitted" val={v.submissionDate} />}
               <SummaryRow k="Type" val={v.projectType} />
               <SummaryRow k="Weight" val={`${num(i.weightLb)} lb · ${num(e.weightTons, 2)} tons`} />
               <SummaryRow k="Productivity" val={`${num(i.outputLbPerMH)} lb/MH`} />
