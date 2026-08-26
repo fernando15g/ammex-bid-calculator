@@ -17,6 +17,7 @@ import {
   TRAVEL_DEFAULTS,
   computeTravel,
   suggestHotelNights,
+  dailyTripFuel,
 } from "@/lib/calc";
 import { usd, num, pct, cents } from "@/lib/format";
 
@@ -34,6 +35,19 @@ const STORAGE_KEY = "ammex_bid_state";
 
 function Calculator() {
   const [v, setV] = useState({ ...DEFAULTS, ...TRAVEL_DEFAULTS });
+  // Backfill any travel defaults missing from stale saved state (localStorage from before these fields existed).
+  useEffect(() => {
+    setV((s) => {
+      const fill = {};
+      const d = TRAVEL_DEFAULTS;
+      for (const k of ["hotelTaxPct","hotelNightsBasis","fuelMPG","subsistenceRate","travelMarkupPct"]) {
+        if (s[k] === undefined || s[k] === null || s[k] === "") fill[k] = d[k];
+      }
+      if (s.travelMarkupOn === undefined) fill.travelMarkupOn = d.travelMarkupOn;
+      if (s.travelAddToBid === undefined) fill.travelAddToBid = d.travelAddToBid;
+      return Object.keys(fill).length ? { ...s, ...fill } : s;
+    });
+  }, []);
   const [loaded, setLoaded] = useState(false);
   const [copied, setCopied] = useState(false);
   const set = (k) => (val) => {
@@ -78,7 +92,7 @@ function Calculator() {
       travelOn: false, hotelRooms: "", hotelNightlyRate: "", hotelNights: "",
       hotelTaxPct: 0.125, hotelNightsBasis: 5, fuelMiles: "", fuelTrips: "",
       fuelMPG: 18, fuelPerGal: "", fuelCostManual: "", subsistenceRate: 6,
-      subsistenceInLabor: false, travelMarkupOn: true, travelMarkupPct: 0.12,
+      subsistenceInLabor: false, travelMarkupOn: true, travelMarkupPct: 0.12, travelAddToBid: true,
     }));
     setBidOverride("");
   }
@@ -116,9 +130,19 @@ function Calculator() {
 
   // Out-of-town (travel) add-on. Own markup, independent of the labor stack.
   const travel = useMemo(() => computeTravel(i, v, e.crewDays), [i, v, e.crewDays]);
-  const travelCents = v.travelOn ? travel.centsPerLb : 0;
+  // Auto-fill hotel nights from the selected week basis the moment travel turns on (no re-click needed).
+  useEffect(() => {
+    if (v.travelOn && (v.hotelNights === "" || v.hotelNights == null)) {
+      setV((s) => ({ ...s, hotelNights: suggestHotelNights(e.crewDays, s.hotelNightsBasis || 5) }));
+    }
+  }, [v.travelOn]); // eslint-disable-line react-hooks/exhaustive-deps
+  const dailyFuel = dailyTripFuel(v, e.crewDays);
+  const travelFoldsIn = !!v.travelOn && !!v.travelAddToBid;
+  const travelCents = travelFoldsIn ? travel.centsPerLb : 0;
   // The bid rate the user should actually quote = placement active bid + travel add-on.
   const bidWithTravelCents = activeCents + travelCents;
+  // Dollar value of the bid including folded-in travel (travelCents is 0 unless it folds in).
+  const bidWithTravel = d.bid + (travelFoldsIn ? travel.total : 0);
 
   // Specialty scope rollup (labor-only). Rebar side comes from the active bid.
   const sp = useMemo(
@@ -249,7 +273,8 @@ function Calculator() {
       `Fully-loaded cost: ${usd(e.totalCost)}`,
       ``,
       `FINAL BID: ${usd(d.bid)}`,
-      `Bid rate: ${cents(activeCents)}/lb  •  ${usd(d.perTon)}/ton`,
+      `Bid rate: ${cents(bidWithTravelCents)}/lb${travelFoldsIn ? ` (incl. ${cents(travelCents)} travel)` : ""}  •  ${usd(d.perTon)}/ton`,
+      v.travelOn ? `Out-of-town: ${usd(travel.total)} → +${cents(travel.centsPerLb)}/lb${travelFoldsIn ? " (in bid)" : " (not in bid)"}` : null,
       `Operating profit: ${usd(d.grossProfit)}`,
       `Operating margin: ${pct(d.grossMargin)}`,
       v.notes ? `\nNotes: ${v.notes}` : null,
@@ -383,10 +408,15 @@ function Calculator() {
               <div className="border-t border-line pt-4">
                 <div className="mb-2 text-[11px] font-semibold uppercase tracking-eyebrow text-slate2">Fuel</div>
                 <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-                  <Field label="Total (direct)" value={v.fuelCostManual} step="any" prefix="$"
-                    onChange={set("fuelCostManual")} hint="Type a total, or use mileage →" />
                   <Field label="Round-trip mi" value={v.fuelMiles} step="any" onChange={set("fuelMiles")} />
-                  <Field label="Trips" value={v.fuelTrips} step="any" onChange={set("fuelTrips")} />
+                  <div>
+                    <Field label="Trips" value={v.fuelTrips} step="any" onChange={set("fuelTrips")} />
+                    <span className="mt-1 block text-[11px] leading-snug text-slate2/70">
+                      {dailyFuel.cost != null
+                        ? <>Daily: {dailyFuel.trips} trips ≈ <span className="tnum">{usd(dailyFuel.cost)}</span></>
+                        : <>Daily ≈ {dailyFuel.trips} trips (add mi/MPG/$)</>}
+                    </span>
+                  </div>
                   <Field label="MPG" value={v.fuelMPG} step="any" onChange={set("fuelMPG")} />
                   <Field label="$ / gallon" value={v.fuelPerGal} step="any" prefix="$" onChange={set("fuelPerGal")} />
                 </div>
@@ -394,8 +424,16 @@ function Calculator() {
                   Fuel cost: <span className="tnum font-semibold text-gunmetal">{usd(travel.fuelCost)}</span>
                   {v.fuelCostManual === "" || v.fuelCostManual == null
                     ? <span className="text-slate2/70"> (from mileage)</span>
-                    : <span className="text-slate2/70"> (entered directly)</span>}
+                    : <span className="text-slate2/70"> (entered directly — overrides mileage)</span>}
                 </div>
+                {/* Optional: type a total directly, tucked at the bottom */}
+                <details className="mt-2">
+                  <summary className="cursor-pointer text-[11px] font-semibold text-slate2/70 hover:text-rebar">Enter a fuel total directly instead</summary>
+                  <div className="mt-2 w-full sm:w-48">
+                    <Field label="Total fuel (direct)" value={v.fuelCostManual} step="any" prefix="$"
+                      onChange={set("fuelCostManual")} hint="Overrides the mileage calc. Clear to go back to mileage." />
+                  </div>
+                </details>
               </div>
 
               {/* SUBSISTENCE */}
@@ -442,8 +480,21 @@ function Calculator() {
                   <span className="text-[11px] font-semibold uppercase tracking-eyebrow text-slate2">Travel Add-On</span>
                   <span className="tnum font-display text-3xl font-bold text-rebar">+{cents(travel.centsPerLb)}/lb</span>
                 </div>
-                <div className="mt-1 text-right text-[11px] text-slate2">
-                  Bid with travel: <span className="tnum font-semibold text-gunmetal">{cents(bidWithTravelCents)}/lb</span> ({cents(activeCents)} placement + {cents(travelCents)} travel)
+                <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-rebar/20 pt-3">
+                  <button
+                    type="button"
+                    onClick={() => set("travelAddToBid")(!v.travelAddToBid)}
+                    className={`rounded-md border px-3 py-2 text-[11px] font-semibold uppercase tracking-wide transition active:translate-y-px ${
+                      v.travelAddToBid ? "border-rebar bg-rebar text-white" : "border-line bg-white text-slate2 hover:border-rebar hover:text-rebar"
+                    }`}
+                  >
+                    {v.travelAddToBid ? "✓ Added to bid rate" : "Add to bid rate"}
+                  </button>
+                  <span className="tnum text-[12px] text-slate2">
+                    {travelFoldsIn
+                      ? <>Bid with travel: <span className="font-semibold text-gunmetal">{cents(bidWithTravelCents)}/lb</span> ({cents(activeCents)} + {cents(travelCents)})</>
+                      : <>Not in bid rate — placement stays {cents(activeCents)}/lb</>}
+                  </span>
                 </div>
               </div>
             </div>
@@ -660,16 +711,22 @@ function Calculator() {
             <div className="flex flex-col items-start justify-between gap-5 sm:flex-row sm:items-end">
               <div>
                 <div className="eyebrow text-[10px] text-white/55">{bidOverridden ? "Final bid (override)" : "Recommended bid"}</div>
-                <div className="tnum font-display text-5xl font-bold leading-none text-white sm:text-6xl">{usd(d.bid)}</div>
+                <div className="tnum font-display text-5xl font-bold leading-none text-white sm:text-6xl">{usd(bidWithTravel)}</div>
                 <div className="mt-1 text-[11px] italic text-white/40">also known as Contract Value</div>
+                {travelFoldsIn && (
+                  <div className="mt-1 text-[11px] font-semibold text-rebarLite">includes +{cents(travelCents)}/lb out-of-town ({usd(travel.total)})</div>
+                )}
                 <div className="mt-2 text-sm text-white/60">
                   {num(i.weightLb)} lb · {num(e.weightTons, 2)} tons · {num(e.totalMH, 1)} labor hrs
                 </div>
               </div>
               <div className="dim-line w-full px-3 py-2 text-center sm:w-auto sm:min-w-[180px]">
-                <div className="eyebrow text-[10px] text-rebarLite">Bid rate</div>
-                <div className="tnum font-display text-4xl font-bold leading-none text-white">{cents(activeCents)}</div>
+                <div className="eyebrow text-[10px] text-rebarLite">Bid rate{travelFoldsIn ? " (incl. travel)" : ""}</div>
+                <div className="tnum font-display text-4xl font-bold leading-none text-white">{cents(bidWithTravelCents)}</div>
                 <div className="text-[11px] uppercase tracking-eyebrow text-white/45">per lb</div>
+                {travelFoldsIn && (
+                  <div className="mt-1 tnum text-[10px] text-white/45">{cents(activeCents)} + {cents(travelCents)} travel</div>
+                )}
               </div>
             </div>
           </div>
@@ -832,7 +889,8 @@ function Calculator() {
               <SummaryRow k="Labor hours" val={`${num(e.totalMH, 1)} MH · ${num(e.crewDays, 1)} crew days`} />
               <SummaryRow k="Fully-loaded cost" val={usd(e.totalCost)} />
               <SummaryRow k={bidOverridden ? "Final bid" : "Recommended bid"} val={usd(d.bid)} strong />
-              <SummaryRow k="Bid rate" val={`${cents(activeCents)}/lb · ${usd(d.perTon)}/ton`} />
+              <SummaryRow k="Bid rate" val={`${cents(bidWithTravelCents)}/lb · ${usd(d.perTon)}/ton`} />
+              {v.travelOn && <SummaryRow k="Out-of-town" val={`${usd(travel.total)} · +${cents(travel.centsPerLb)}/lb${travelFoldsIn ? " (in bid)" : " (separate)"}`} />}
               <SummaryRow k="Operating profit" val={usd(d.grossProfit)} />
               <SummaryRow k="Operating margin" val={pct(d.grossMargin)} last />
             </div>
@@ -859,7 +917,7 @@ function Calculator() {
               <div className="mt-3 rounded-md border border-good/30 bg-good/[0.08] px-4 py-3 text-sm text-good">
                 <span className="font-semibold">Saved to OS ✓</span>{" "}
                 <span className="text-good/90">
-                  {v.projectName ? `“${v.projectName}” ` : ""}booked at {cents(activeCents)}/lb · {usd(hasSpecialty ? sp.totalRevenue : d.bid)}
+                  {v.projectName ? `“${v.projectName}” ` : ""}booked at {cents(bidWithTravelCents)}/lb · {usd((hasSpecialty ? sp.totalRevenue : d.bid) + (travelFoldsIn ? travel.total : 0))}
                   {hasSpecialty ? " (rebar + specialty)" : ""}. A new row was created in the Bid Tracker.
                 </span>
                 {debugOn && notionMsg && <p className="mt-2 break-all text-[10px] text-slate2/70">{notionMsg}</p>}
