@@ -28,6 +28,7 @@ const dateProp = (s) => {
   return { date: v ? { start: v } : null };
 };
 // Notion multi-select wants a list of { name }; reuses existing tags by name.
+const boolProp = (b) => ({ checkbox: !!b });
 const multiProp = (arr) => {
   const flat = (Array.isArray(arr) ? arr : [arr]).flat(Infinity);
   return {
@@ -62,6 +63,9 @@ export async function POST(request) {
   const {
     projectName, estimatedLbs, lbsPerMH, crewSize, laborRate, bidRatePerLb, notes,
     gc, cityCounty, bidDueDate, submissionDate, fabricator, projectType,
+    travelOn, hotelRooms, hotelNightlyRate, hotelNights, hotelTaxPct, hotelNightsBasis,
+    fuelMiles, fuelTrips, fuelMPG, fuelPerGal, subsistenceRate, subsistenceInLabor,
+    travelMarkupOn, travelMarkupPct, hotelCost, fuelCost, subsistenceCost, travelTotal, travelAddOnCents,
     // computed dollars/margin (from the active/rounded bid)
     operatingProfit, operatingMargin, fullyLoadedCost, burdenedLaborCost,
     // assumptions used on this bid
@@ -86,6 +90,26 @@ export async function POST(request) {
     "City/County": textProp(cityCounty),
     "Bid Due Date": dateProp(bidDueDate),
     "Submission Date": dateProp(submissionDate),
+    // Out-of-town (travel) add-on
+    "Travel On (calc)": boolProp(travelOn),
+    "Hotel Rooms (calc)": numProp(hotelRooms),
+    "Hotel Nightly Rate (calc)": numProp(hotelNightlyRate),
+    "Hotel Nights (calc)": numProp(hotelNights),
+    "Hotel Tax % (calc)": numProp(hotelTaxPct),
+    "Hotel Nights Basis (calc)": numProp(hotelNightsBasis),
+    "Fuel Miles (calc)": numProp(fuelMiles),
+    "Fuel Trips (calc)": numProp(fuelTrips),
+    "Fuel MPG (calc)": numProp(fuelMPG),
+    "Fuel Per Gal (calc)": numProp(fuelPerGal),
+    "Subsistence Rate (calc)": numProp(subsistenceRate),
+    "Subsistence In Labor (calc)": boolProp(subsistenceInLabor),
+    "Travel Markup On (calc)": boolProp(travelMarkupOn),
+    "Travel Markup % (calc)": numProp(travelMarkupPct),
+    "Hotel Cost (calc)": numProp(hotelCost),
+    "Fuel Cost (calc)": numProp(fuelCost),
+    "Subsistence Cost (calc)": numProp(subsistenceCost),
+    "Travel Total (calc)": numProp(travelTotal),
+    "Travel Add-On Cents (calc)": numProp(travelAddOnCents),
     "Fabricator": multiProp(fabricator),
     "Project Type": multiProp(projectType ? [projectType] : []),
     "Notes": textProp(notes),

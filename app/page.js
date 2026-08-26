@@ -14,6 +14,9 @@ import {
   SPECIALTY_TYPES,
   newSpecialtyLine,
   computeSpecialtyRollup,
+  TRAVEL_DEFAULTS,
+  computeTravel,
+  suggestHotelNights,
 } from "@/lib/calc";
 import { usd, num, pct, cents } from "@/lib/format";
 
@@ -30,7 +33,7 @@ export default function Page() {
 const STORAGE_KEY = "ammex_bid_state";
 
 function Calculator() {
-  const [v, setV] = useState(DEFAULTS);
+  const [v, setV] = useState({ ...DEFAULTS, ...TRAVEL_DEFAULTS });
   const [loaded, setLoaded] = useState(false);
   const [copied, setCopied] = useState(false);
   const set = (k) => (val) => {
@@ -71,6 +74,11 @@ function Calculator() {
       weightLb: "",
       outputLbPerMH: "",
       specialtyLines: [],
+      // reset travel inputs to defaults
+      travelOn: false, hotelRooms: "", hotelNightlyRate: "", hotelNights: "",
+      hotelTaxPct: 0.125, hotelNightsBasis: 5, fuelMiles: "", fuelTrips: "",
+      fuelMPG: 18, fuelPerGal: "", fuelCostManual: "", subsistenceRate: 6,
+      subsistenceInLabor: false, travelMarkupOn: true, travelMarkupPct: 0.12,
     }));
     setBidOverride("");
   }
@@ -105,6 +113,12 @@ function Calculator() {
   const bidOverridden = bidOverride !== "" && !isNaN(Number(bidOverride));
   const activeCents = bidOverridden ? Number(bidOverride) : roundedCents;
   const d = useMemo(() => applyBid(i, e, activeCents), [i, e, activeCents]);
+
+  // Out-of-town (travel) add-on. Own markup, independent of the labor stack.
+  const travel = useMemo(() => computeTravel(i, v, e.crewDays), [i, v, e.crewDays]);
+  const travelCents = v.travelOn ? travel.centsPerLb : 0;
+  // The bid rate the user should actually quote = placement active bid + travel add-on.
+  const bidWithTravelCents = activeCents + travelCents;
 
   // Specialty scope rollup (labor-only). Rebar side comes from the active bid.
   const sp = useMemo(
@@ -170,6 +184,18 @@ function Calculator() {
           cityCounty: v.cityCounty,
           bidDueDate: v.bidDueDate,
           submissionDate: v.submissionDate,
+          // travel add-on
+          travelOn: !!v.travelOn,
+          hotelRooms: v.hotelRooms, hotelNightlyRate: v.hotelNightlyRate, hotelNights: v.hotelNights,
+          hotelTaxPct: v.hotelTaxPct, hotelNightsBasis: v.hotelNightsBasis,
+          fuelMiles: v.fuelMiles, fuelTrips: v.fuelTrips, fuelMPG: v.fuelMPG, fuelPerGal: v.fuelPerGal,
+          subsistenceRate: v.subsistenceRate, subsistenceInLabor: !!v.subsistenceInLabor,
+          travelMarkupOn: !!v.travelMarkupOn, travelMarkupPct: v.travelMarkupPct,
+          hotelCost: Number(travel.hotelCost.toFixed(2)),
+          fuelCost: Number(travel.fuelCost.toFixed(2)),
+          subsistenceCost: Number(travel.subsistenceCost.toFixed(2)),
+          travelTotal: Number(travel.total.toFixed(2)),
+          travelAddOnCents: travel.centsPerLb,
           fabricator: v.fabricator,
           projectType: v.projectType,
           notes: v.notes,
@@ -316,8 +342,116 @@ function Calculator() {
           )}
         </Section>
 
-        {/* 3 — SPECIALTY SCOPE */}
-        <Section index={3} title="Specialty Scope" subtitle="PT and mesh, priced labor-only on the same cost stack as rebar. Material is not included here.">
+        {/* 3 — OUT-OF-TOWN COSTS */}
+        <Section index={3} title="Out-of-Town Costs" subtitle="Hotel, fuel, and subsistence for remote jobs. Carries its own markup and folds into the bid as a ¢/lb add-on — separate from placement margin.">
+          <div className="flex items-center gap-2.5 px-4 py-3">
+            <input type="checkbox" checked={!!v.travelOn} onChange={(ev) => set("travelOn")(ev.target.checked)} className="h-4 w-4 accent-rebar" />
+            <span className="text-sm font-semibold text-gunmetal">Add out-of-town costs to this bid</span>
+          </div>
+
+          {v.travelOn && (
+            <div className="space-y-5 border-t border-line p-4">
+              {/* HOTEL */}
+              <div>
+                <div className="mb-2 text-[11px] font-semibold uppercase tracking-eyebrow text-slate2">Hotel</div>
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+                  <Field label="Rooms" value={v.hotelRooms} step="any" onChange={set("hotelRooms")} />
+                  <Field label="Nightly rate" value={v.hotelNightlyRate} step="any" prefix="$" onChange={set("hotelNightlyRate")} />
+                  <Field label="Nights" value={v.hotelNights} step="any" onChange={set("hotelNights")}
+                    hint={`Suggested ${travel.suggestedNights} on a ${v.hotelNightsBasis}-day week`} />
+                  <Field label="Hotel tax %" value={pctIn(v.hotelTaxPct)} step="any" suffix="%"
+                    onChange={(x) => set("hotelTaxPct")(pctOut(x))} />
+                  <label className="block">
+                    <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-slate2">Week basis</span>
+                    <div className="flex gap-1.5">
+                      {[5, 7].map((b) => (
+                        <button key={b} type="button"
+                          onClick={() => { set("hotelNightsBasis")(b); set("hotelNights")(suggestHotelNights(e.crewDays, b)); }}
+                          className={`flex-1 rounded-md border px-2 py-2.5 text-[11px] font-semibold uppercase tracking-wide transition ${
+                            Number(v.hotelNightsBasis) === b ? "border-rebar bg-rebar text-white" : "border-line bg-white text-slate2 hover:border-rebar"
+                          }`}>
+                          {b}-day
+                        </button>
+                      ))}
+                    </div>
+                  </label>
+                </div>
+                <div className="mt-1.5 text-[11px] text-slate2">Hotel cost: <span className="tnum font-semibold text-gunmetal">{usd(travel.hotelCost)}</span></div>
+              </div>
+
+              {/* FUEL */}
+              <div className="border-t border-line pt-4">
+                <div className="mb-2 text-[11px] font-semibold uppercase tracking-eyebrow text-slate2">Fuel</div>
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                  <Field label="Total (direct)" value={v.fuelCostManual} step="any" prefix="$"
+                    onChange={set("fuelCostManual")} hint="Type a total, or use mileage →" />
+                  <Field label="Round-trip mi" value={v.fuelMiles} step="any" onChange={set("fuelMiles")} />
+                  <Field label="Trips" value={v.fuelTrips} step="any" onChange={set("fuelTrips")} />
+                  <Field label="MPG" value={v.fuelMPG} step="any" onChange={set("fuelMPG")} />
+                  <Field label="$ / gallon" value={v.fuelPerGal} step="any" prefix="$" onChange={set("fuelPerGal")} />
+                </div>
+                <div className="mt-1.5 text-[11px] text-slate2">
+                  Fuel cost: <span className="tnum font-semibold text-gunmetal">{usd(travel.fuelCost)}</span>
+                  {v.fuelCostManual === "" || v.fuelCostManual == null
+                    ? <span className="text-slate2/70"> (from mileage)</span>
+                    : <span className="text-slate2/70"> (entered directly)</span>}
+                </div>
+              </div>
+
+              {/* SUBSISTENCE */}
+              <div className="border-t border-line pt-4">
+                <div className="mb-2 text-[11px] font-semibold uppercase tracking-eyebrow text-slate2">Subsistence</div>
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+                  <Field label="Workers" value={i.crewSize} step="any" onChange={set("crewSize")} hint="From crew size" />
+                  <Field label="Crew days" value={num(e.crewDays, 1)} readOnly hint="Auto from the estimate" />
+                  <Field label="Rate / worker / day" value={v.subsistenceRate} step="any" prefix="$" onChange={set("subsistenceRate")} />
+                </div>
+                <label className="mt-2 flex cursor-pointer items-center gap-2 text-[12px] text-slate2">
+                  <input type="checkbox" checked={!!v.subsistenceInLabor} onChange={(ev) => set("subsistenceInLabor")(ev.target.checked)} className="h-3.5 w-3.5 accent-rebar" />
+                  Subsistence already included in labor rate (sets to $0)
+                </label>
+                <div className="mt-1.5 text-[11px] text-slate2">Subsistence cost: <span className="tnum font-semibold text-gunmetal">{usd(travel.subsistenceCost)}</span></div>
+              </div>
+
+              {/* MARKUP */}
+              <div className="border-t border-line pt-4">
+                <div className="flex flex-wrap items-center gap-3">
+                  <label className="flex cursor-pointer items-center gap-2 text-sm font-semibold text-gunmetal">
+                    <input type="checkbox" checked={!!v.travelMarkupOn} onChange={(ev) => set("travelMarkupOn")(ev.target.checked)} className="h-4 w-4 accent-rebar" />
+                    Apply travel markup
+                  </label>
+                  {v.travelMarkupOn && (
+                    <div className="w-28">
+                      <Field label="" value={pctIn(v.travelMarkupPct)} step="any" suffix="%"
+                        onChange={(x) => set("travelMarkupPct")(pctOut(x))} />
+                    </div>
+                  )}
+                  <span className="text-[11px] text-slate2/70">Premium on travel only — not placement margin.</span>
+                </div>
+              </div>
+
+              {/* TRAVEL SUMMARY */}
+              <div className="rounded-md border border-rebar/30 bg-rebar/[0.06] p-4">
+                <div className="grid grid-cols-2 gap-y-1.5 text-sm sm:grid-cols-4">
+                  <div><div className="text-[10px] uppercase tracking-eyebrow text-slate2">Hotel</div><div className="tnum font-semibold">{usd(travel.hotelCost)}</div></div>
+                  <div><div className="text-[10px] uppercase tracking-eyebrow text-slate2">Fuel</div><div className="tnum font-semibold">{usd(travel.fuelCost)}</div></div>
+                  <div><div className="text-[10px] uppercase tracking-eyebrow text-slate2">Subsistence</div><div className="tnum font-semibold">{usd(travel.subsistenceCost)}</div></div>
+                  <div><div className="text-[10px] uppercase tracking-eyebrow text-slate2">Total{v.travelMarkupOn ? ` (+${pct(travel.markupPct)})` : ""}</div><div className="tnum font-semibold">{usd(travel.total)}</div></div>
+                </div>
+                <div className="mt-3 flex items-baseline justify-between border-t border-rebar/20 pt-3">
+                  <span className="text-[11px] font-semibold uppercase tracking-eyebrow text-slate2">Travel Add-On</span>
+                  <span className="tnum font-display text-3xl font-bold text-rebar">+{cents(travel.centsPerLb)}/lb</span>
+                </div>
+                <div className="mt-1 text-right text-[11px] text-slate2">
+                  Bid with travel: <span className="tnum font-semibold text-gunmetal">{cents(bidWithTravelCents)}/lb</span> ({cents(activeCents)} placement + {cents(travelCents)} travel)
+                </div>
+              </div>
+            </div>
+          )}
+        </Section>
+
+        {/* 4 — SPECIALTY SCOPE */}
+        <Section index={4} title="Specialty Scope" subtitle="PT and mesh, priced labor-only on the same cost stack as rebar. Material is not included here.">
           <div className="flex items-center justify-between gap-3 px-4 py-3">
             <label className="flex cursor-pointer items-center gap-2.5">
               <input
@@ -504,7 +638,7 @@ function Calculator() {
         </Section>
 
         {/* 4 — COST BREAKDOWN */}
-        <Section index={4} title="Cost Breakdown">
+        <Section index={5} title="Cost Breakdown">
           <div className="grid grid-cols-2 gap-3 p-4 sm:grid-cols-3 lg:grid-cols-4">
             <StatCard label="Weight" value={`${num(i.weightLb)} lb`} sub={`${num(e.weightTons, 2)} tons`} />
             <StatCard label="Field man-hours" value={num(e.fieldMH, 1)} sub="weight ÷ productivity" />
@@ -520,7 +654,7 @@ function Calculator() {
         </Section>
 
         {/* 5 — RECOMMENDED BID RESULTS */}
-        <Section index={5} title="Recommended Bid" subtitle={`Priced to your ${pct(i.targetMarginPct, 0)} target margin, then rounded to the nearest quarter-cent.`}>
+        <Section index={6} title="Recommended Bid" subtitle={`Priced to your ${pct(i.targetMarginPct, 0)} target margin, then rounded to the nearest quarter-cent.`}>
           {/* Hero */}
           <div className="border-b border-line bg-steel p-5 sm:p-6">
             <div className="flex flex-col items-start justify-between gap-5 sm:flex-row sm:items-end">
@@ -578,7 +712,7 @@ function Calculator() {
         </Section>
 
         {/* 6 — REVERSE BID ANALYSIS */}
-        <Section index={6} title="Reverse Bid Analysis" subtitle="Enter a market bid rate to see the margin it implies — and the productivity your crew would need to hit at that price.">
+        <Section index={7} title="Reverse Bid Analysis" subtitle="Enter a market bid rate to see the margin it implies — and the productivity your crew would need to hit at that price.">
           <div className="grid grid-cols-1 gap-4 p-4 lg:grid-cols-[220px_1fr] lg:items-start">
             <div className="rounded-md border border-line bg-white p-3.5">
               <Field label="Market / target bid rate" value={v.marketCentsPerLb} onChange={set("marketCentsPerLb")} step="any" suffix="¢/lb" hint={`${usd(rev.inputPerLb, 4)}/lb · ${usd(rev.inputPerTon)}/ton`} />
@@ -621,7 +755,7 @@ function Calculator() {
         </Section>
 
         {/* 7 — SENSITIVITY ANALYSIS */}
-        <Section index={7} title="Sensitivity Analysis" subtitle="Centered on your Section 2 productivity, ±5 rows. Holds your bid fixed and shows how margin moves as production runs faster or slower. Your planned row is highlighted.">
+        <Section index={8} title="Sensitivity Analysis" subtitle="Centered on your Section 2 productivity, ±5 rows. Holds your bid fixed and shows how margin moves as production runs faster or slower. Your planned row is highlighted.">
           <div className="flex flex-col gap-2 px-4 pt-4 sm:flex-row sm:items-end sm:justify-between">
             <div className="w-full sm:max-w-[260px]">
               <Field
@@ -683,7 +817,7 @@ function Calculator() {
         </Section>
 
         {/* 8 — BID SUMMARY */}
-        <Section index={8} title="Bid Summary">
+        <Section index={9} title="Bid Summary">
           <div className="p-4">
             <div className="rounded-md border border-line bg-white">
               <SummaryRow k="Project" val={v.projectName || "—"} />

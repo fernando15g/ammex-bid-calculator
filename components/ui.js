@@ -19,7 +19,7 @@ export function Section({ index, title, subtitle, children, className = "" }) {
 }
 
 // ---- Labeled input --------------------------------------------------------
-export function Field({ label, hint, value, onChange, type = "number", step, suffix, prefix, options, textarea, placeholder }) {
+export function Field({ label, hint, value, onChange, type = "number", step, suffix, prefix, options, textarea, placeholder, readOnly }) {
   const base =
     "w-full rounded-md border border-line bg-white px-3 py-2.5 text-[15px] text-gunmetal outline-none transition focus:border-rebar focus:ring-2 focus:ring-rebar/20";
   return (
@@ -48,6 +48,8 @@ export function Field({ label, hint, value, onChange, type = "number", step, suf
             type={type}
             inputMode={type === "number" ? "decimal" : undefined}
             step={step}
+            readOnly={readOnly}
+            disabled={readOnly}
             value={value}
             placeholder={placeholder}
             onChange={(e) => onChange(type === "number" ? (e.target.value === "" ? "" : Number(e.target.value)) : e.target.value)}
