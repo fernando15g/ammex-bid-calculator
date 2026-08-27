@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from "react";
 
-const KEY = "ammex_unlocked";
+const KEY = "ammex_unlocked_until"; // stores an expiry timestamp (ms)
+const REMEMBER_DAYS = 14;
 
 export default function PasswordGate({ children }) {
   const [ready, setReady] = useState(false);
@@ -13,14 +14,22 @@ export default function PasswordGate({ children }) {
   const expected = process.env.NEXT_PUBLIC_APP_PASSWORD || "ammex";
 
   useEffect(() => {
-    setOk(typeof window !== "undefined" && sessionStorage.getItem(KEY) === "1");
+    try {
+      const until = Number(localStorage.getItem(KEY) || 0);
+      setOk(until > Date.now());
+    } catch {
+      setOk(false);
+    }
     setReady(true);
   }, []);
 
   function submit(e) {
     e.preventDefault();
     if (pw === expected) {
-      sessionStorage.setItem(KEY, "1");
+      try {
+        const until = Date.now() + REMEMBER_DAYS * 24 * 60 * 60 * 1000;
+        localStorage.setItem(KEY, String(until));
+      } catch {}
       setOk(true);
       setErr(false);
     } else {
@@ -57,6 +66,7 @@ export default function PasswordGate({ children }) {
         >
           Open calculator
         </button>
+        <p className="mt-3 text-center text-[11px] text-white/40">Stays unlocked on this device for {REMEMBER_DAYS} days.</p>
       </form>
     </div>
   );

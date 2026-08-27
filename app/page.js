@@ -92,7 +92,7 @@ function Calculator() {
       travelOn: false, hotelRooms: "", hotelNightlyRate: "", hotelNights: "",
       hotelTaxPct: 0.125, hotelNightsBasis: 5, fuelMiles: "", fuelTrips: "",
       fuelMPG: 18, fuelPerGal: "", fuelCostManual: "", subsistenceRate: 6,
-      subsistenceInLabor: false, travelMarkupOn: true, travelMarkupPct: 0.12, travelAddToBid: true,
+      subsistenceInLabor: false, travelMarkupOn: true, travelMarkupPct: 0.12, travelAddToBid: false,
     }));
     setBidOverride("");
   }
@@ -295,8 +295,8 @@ function Calculator() {
             <div className="font-display text-xl font-bold uppercase leading-tight tracking-wide text-white">Bid Calculator</div>
           </div>
           <div className="text-right">
-            <div className="text-[10px] uppercase tracking-eyebrow text-white/50">{bidOverridden ? "Final bid" : "Bid rate"}</div>
-            <div className="tnum font-display text-2xl font-bold leading-none text-rebarLite">{cents(activeCents)}/lb</div>
+            <div className="text-[10px] uppercase tracking-eyebrow text-white/50">{bidOverridden ? "Final bid" : "Bid rate"}{travelFoldsIn ? " +travel" : ""}</div>
+            <div className="tnum font-display text-2xl font-bold leading-none text-rebarLite">{cents(bidWithTravelCents)}/lb</div>
           </div>
         </div>
       </header>
