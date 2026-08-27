@@ -139,10 +139,19 @@ function Calculator() {
   const dailyFuel = dailyTripFuel(v, e.crewDays);
   const travelFoldsIn = !!v.travelOn && !!v.travelAddToBid;
   const travelCents = travelFoldsIn ? travel.centsPerLb : 0;
-  // The bid rate the user should actually quote = placement active bid + travel add-on.
-  const bidWithTravelCents = activeCents + travelCents;
-  // Dollar value of the bid including folded-in travel (travelCents is 0 unless it folds in).
-  const bidWithTravel = d.bid + (travelFoldsIn ? travel.total : 0);
+  // The bid rate the user should actually quote = placement active bid + travel add-on,
+  // rounded to the nearest quarter-cent (same rule as the base bid) when travel folds in.
+  const bidWithTravelCents = travelFoldsIn
+    ? roundToQuarterCent(activeCents + travelCents)
+    : activeCents;
+  // The cents that actually get SAVED as Bid Rate: combined+rounded when folding in, else placement.
+  const savedBidCents = bidWithTravelCents;
+  // Dollar value of the bid at the (rounded) quoted rate, so hero $ matches the saved Bid Rate.
+  const bidWithTravel = travelFoldsIn
+    ? (savedBidCents / 100) * i.weightLb
+    : d.bid;
+  // Effective travel contribution after rounding (so the split always sums to the quoted rate).
+  const effTravelCents = travelFoldsIn ? (bidWithTravelCents - activeCents) : 0;
 
   // Specialty scope rollup (labor-only). Rebar side comes from the active bid.
   const sp = useMemo(
@@ -203,7 +212,7 @@ function Calculator() {
           lbsPerMH: i.outputLbPerMH,
           crewSize: i.crewSize,
           laborRate: i.wageRate,
-          bidRatePerLb: Number(d.perLb.toFixed(4)), // active (rounded/override) bid, $/lb
+          bidRatePerLb: Number((savedBidCents / 100).toFixed(4)), // travel-inclusive (rounded ¼¢) when folded in, else placement
           gc: Array.isArray(v.client) ? v.client : (v.client ? [v.client] : []),
           cityCounty: v.cityCounty,
           bidDueDate: v.bidDueDate,
@@ -229,7 +238,7 @@ function Calculator() {
           operatingMargin: Number(sp.totalMargin.toFixed(4)), // ratio, combined
           fullyLoadedCost: Number(sp.totalCost.toFixed(2)),
           burdenedLaborCost: Number(e.directLabor.toFixed(2)),
-          rebarRevenue: Number(d.bid.toFixed(2)),
+          rebarRevenue: Number(d.bid.toFixed(2)), // PURE placement revenue (placement rate × lbs) — no travel
           specialtyRevenue: Number(sp.specRevenue.toFixed(2)),
           specialtyCost: Number(sp.specCost.toFixed(2)),
           specialtyHours: Number(sp.specHours.toFixed(2)),
@@ -493,7 +502,7 @@ function Calculator() {
                   </button>
                   <span className="tnum text-[12px] text-slate2">
                     {travelFoldsIn
-                      ? <>Bid with travel: <span className="font-semibold text-gunmetal">{cents(bidWithTravelCents)}/lb</span> ({cents(activeCents)} + {cents(travelCents)})</>
+                      ? <>Bid with travel: <span className="font-semibold text-gunmetal">{cents(bidWithTravelCents)}/lb</span> ({cents(activeCents)} + {cents(effTravelCents)} travel, ¼¢ rounded)</>
                       : <>Not in bid rate — placement stays {cents(activeCents)}/lb</>}
                   </span>
                 </div>
@@ -729,7 +738,7 @@ function Calculator() {
                 <div className="tnum font-display text-4xl font-bold leading-none text-white">{cents(bidWithTravelCents)}</div>
                 <div className="text-[11px] uppercase tracking-eyebrow text-white/45">per lb</div>
                 {travelFoldsIn && (
-                  <div className="mt-1 tnum text-[10px] text-white/45">{cents(activeCents)} + {cents(travelCents)} travel</div>
+                  <div className="mt-1 tnum text-[10px] text-white/45">{cents(activeCents)} + {cents(effTravelCents)} travel (¼¢ rounded)</div>
                 )}
               </div>
             </div>
