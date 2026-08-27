@@ -3,6 +3,20 @@ import "./globals.css";
 export const metadata = {
   title: "Ammex Bid Calculator",
   description: "Rebar placement labor estimating and bid pricing",
+  manifest: "/manifest.json",
+  icons: {
+    icon: [
+      { url: "/favicon.ico", sizes: "any" },
+      { url: "/icon-192.png", type: "image/png", sizes: "192x192" },
+      { url: "/icon-512.png", type: "image/png", sizes: "512x512" },
+    ],
+    apple: [{ url: "/apple-touch-icon.png", sizes: "180x180" }],
+  },
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "black-translucent",
+    title: "Ammex Bid",
+  },
 };
 
 export const viewport = {
