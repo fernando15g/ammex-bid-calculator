@@ -215,6 +215,7 @@ function Calculator() {
           fuelMiles: v.fuelMiles, fuelTrips: v.fuelTrips, fuelMPG: v.fuelMPG, fuelPerGal: v.fuelPerGal,
           subsistenceRate: v.subsistenceRate, subsistenceInLabor: !!v.subsistenceInLabor,
           travelMarkupOn: !!v.travelMarkupOn, travelMarkupPct: v.travelMarkupPct,
+          travelAddToBid: !!v.travelAddToBid,
           hotelCost: Number(travel.hotelCost.toFixed(2)),
           fuelCost: Number(travel.fuelCost.toFixed(2)),
           subsistenceCost: Number(travel.subsistenceCost.toFixed(2)),
@@ -496,6 +497,9 @@ function Calculator() {
                       : <>Not in bid rate — placement stays {cents(activeCents)}/lb</>}
                   </span>
                 </div>
+                <p className="mt-2 text-[11px] leading-snug text-slate2/70">
+                  Operating margin stays a pure placement figure — travel is a separately-marked-up pass-through and is tracked in its own columns, not blended into margin.
+                </p>
               </div>
             </div>
           )}
