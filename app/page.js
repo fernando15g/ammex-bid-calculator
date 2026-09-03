@@ -703,6 +703,11 @@ function Calculator() {
                               <span className={`tnum font-semibold ${r.margin >= i.targetMarginPct ? "text-good" : "text-warn"}`}>
                                 {pct(r.margin)} margin
                               </span>
+                              {v.otOn && r.otPremium > 0 && (
+                                <span className="w-full text-[11px] leading-snug text-rebar">
+                                  ▲ Includes {usd(r.otPremium)} overtime ({Math.round((v.otPct || 0) * 100)}%) — margin reflects the OT cost; raise your rate a few cents to recover it.
+                                </span>
+                              )}
                             </>
                           ) : (
                             <>
