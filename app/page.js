@@ -746,11 +746,11 @@ function Calculator() {
                             {r.type}
                             {!r.hasCostBasis && <span className="ml-1 text-[10px] font-normal text-warn">▲ no cost basis</span>}
                           </td>
-                          <td className="px-3 py-2.5 text-slate2">{num(r.hours, 1)}</td>
-                          <td className="px-3 py-2.5">{usd(r.cost)}</td>
-                          <td className="px-3 py-2.5">{usd(r.revenue)}</td>
-                          <td className="px-3 py-2.5">{usd(r.profit)}</td>
-                          <td className="px-3 py-2.5">{r.revenue > 0 ? pct(r.margin) : "—"}</td>
+                          <td className="px-3 py-2.5 text-slate2">{r.hours != null ? num(r.hours, 1) : "—"}</td>
+                          <td className="px-3 py-2.5">{r.hasCostBasis ? usd(r.cost) : "—"}</td>
+                          <td className="px-3 py-2.5">{r.revenue != null ? usd(r.revenue) : "—"}</td>
+                          <td className="px-3 py-2.5">{r.profit != null ? usd(r.profit) : "—"}</td>
+                          <td className="px-3 py-2.5">{r.hasCostBasis && r.revenue > 0 ? pct(r.margin) : "—"}</td>
                         </tr>
                       ))}
                       <tr className="border-t-2 border-gunmetal/20 bg-rebar/[0.06]">

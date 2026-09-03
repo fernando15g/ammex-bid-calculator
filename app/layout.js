@@ -17,6 +17,9 @@ export const metadata = {
     statusBarStyle: "black-translucent",
     title: "Ammex Bid",
   },
+  other: {
+    "mobile-web-app-capable": "yes",
+  },
 };
 
 export const viewport = {
