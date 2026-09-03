@@ -70,7 +70,7 @@ export async function POST(request) {
     // computed dollars/margin (from the active/rounded bid)
     operatingProfit, operatingMargin, fullyLoadedCost, burdenedLaborCost,
     // assumptions used on this bid
-    burdenPct, toolsPct, contingencyPct, mobilizationHrs, targetMarginPct,
+    burdenPct, toolsPct, contingencyPct, mobilizationHrs, targetMarginPct, otPct, otCentsPerLb,
     // specialty scope
     rebarRevenue, specialtyRevenue, specialtyCost, specialtyHours, specialtyTypes, specialtyLineItems,
   } = body || {};
@@ -126,6 +126,8 @@ export async function POST(request) {
     "Contingency % (calc)": numProp(contingencyPct),
     "Mobilization Hrs (calc)": numProp(mobilizationHrs),
     "Target Margin % (calc)": numProp(targetMarginPct),
+    "OT %": numProp(otPct),
+    "OT ¢/lb (calc)": numProp(otCentsPerLb),
     // Specialty scope (labor-only)
     "Rebar Revenue (calc)": numProp(rebarRevenue),
     "Specialty Revenue (calc)": numProp(specialtyRevenue),

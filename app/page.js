@@ -94,6 +94,7 @@ function Calculator() {
       hotelTaxPct: 0.125, hotelNightsBasis: 5, fuelMiles: "", fuelTrips: "",
       fuelMPG: 18, fuelPerGal: "", fuelCostManual: "", subsistenceRate: 6,
       subsistenceInLabor: false, travelMarkupOn: true, travelMarkupPct: 0.12, travelAddToBid: false,
+      otOn: false, otPct: 0.10,
     }));
     setBidOverride("");
   }
@@ -284,6 +285,9 @@ function Calculator() {
           contingencyPct: i.contingencyPct,
           mobilizationHrs: i.mobilizationHrs,
           targetMarginPct: i.targetMarginPct,
+          // Overtime — write blanks/zeros when off so historical rows stay comparable.
+          otPct: v.otOn ? (v.otPct || 0) : "",
+          otCentsPerLb: v.otOn ? e.otCentsPerLb : 0,
         }),
       });
       const data = await res.json();
@@ -393,6 +397,37 @@ function Calculator() {
             <Field label="Small tools / consumables %" value={pctIn(v.toolsPct)} onChange={(x) => set("toolsPct")(pctOut(x))} step="any" suffix="%" />
             <Field label="Contingency %" value={pctIn(v.contingencyPct)} onChange={(x) => set("contingencyPct")(pctOut(x))} step="any" suffix="%" />
             <Field label="Target margin %" value={pctIn(v.targetMarginPct)} onChange={(x) => set("targetMarginPct")(pctOut(x))} step="any" suffix="%" />
+          </div>
+
+          {/* Overtime */}
+          <div className="border-t border-line px-4 py-3">
+            <label className="flex cursor-pointer items-center gap-2.5">
+              <input type="checkbox" checked={!!v.otOn} onChange={(ev) => set("otOn")(ev.target.checked)} className="h-4 w-4 accent-rebar" />
+              <span className="text-sm font-semibold text-gunmetal">Anticipate overtime on this bid</span>
+            </label>
+            {v.otOn && (
+              <div className="mt-3 flex flex-wrap items-center gap-3">
+                <label className="text-[11px] font-semibold uppercase tracking-wide text-slate2">Share of field hours at OT</label>
+                <select
+                  value={String(v.otPct)}
+                  onChange={(ev) => set("otPct")(Number(ev.target.value))}
+                  className="rounded-md border border-line bg-white px-3 py-2 text-sm tnum text-gunmetal outline-none focus:border-rebar"
+                >
+                  {[0.05, 0.10, 0.15, 0.20, 0.25].map((p) => (
+                    <option key={p} value={p}>{Math.round(p * 100)}%</option>
+                  ))}
+                </select>
+                <span className="text-[12px] text-slate2">
+                  Adds <span className="tnum font-semibold text-rebar">+{cents(e.otCentsPerLb)}/lb</span> to the bid
+                  <span className="text-slate2/60"> · OT premium {usd(e.otPremium)}</span>
+                </span>
+              </div>
+            )}
+            {v.otOn && (
+              <p className="mt-2 text-[11px] leading-snug text-slate2/70">
+                {Math.round((v.otPct || 0) * 100)}% of placement hours worked at time-and-a-half. Only the premium (the extra half) is added to labor cost, so it flows through tools, contingency, and your margin like any other labor.
+              </p>
+            )}
           </div>
 
           {flags.length > 0 && (
