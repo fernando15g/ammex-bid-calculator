@@ -705,14 +705,19 @@ function Calculator() {
                         <td className="px-3 py-2.5">{usd(d.grossProfit)}</td>
                         <td className="px-3 py-2.5">{pct(d.grossMargin)}</td>
                       </tr>
-                      <tr className="border-t border-line">
-                        <td className="px-3 py-2.5 text-left font-semibold text-gunmetal">Specialty</td>
-                        <td className="px-3 py-2.5 text-slate2">{num(sp.specHours, 1)}</td>
-                        <td className="px-3 py-2.5">{usd(sp.specCost)}</td>
-                        <td className="px-3 py-2.5">{usd(sp.specRevenue)}</td>
-                        <td className="px-3 py-2.5">{usd(sp.specProfit)}</td>
-                        <td className="px-3 py-2.5">{sp.specRevenue > 0 ? pct(sp.specMargin) : "—"}</td>
-                      </tr>
+                      {sp.rows.map((r) => (
+                        <tr key={r.id} className="border-t border-line">
+                          <td className="px-3 py-2.5 text-left font-semibold text-gunmetal">
+                            {r.type}
+                            {!r.hasCostBasis && <span className="ml-1 text-[10px] font-normal text-warn">▲ no cost basis</span>}
+                          </td>
+                          <td className="px-3 py-2.5 text-slate2">{num(r.hours, 1)}</td>
+                          <td className="px-3 py-2.5">{usd(r.cost)}</td>
+                          <td className="px-3 py-2.5">{usd(r.revenue)}</td>
+                          <td className="px-3 py-2.5">{usd(r.profit)}</td>
+                          <td className="px-3 py-2.5">{r.revenue > 0 ? pct(r.margin) : "—"}</td>
+                        </tr>
+                      ))}
                       <tr className="border-t-2 border-gunmetal/20 bg-rebar/[0.06]">
                         <td className="px-3 py-2.5 text-left font-display font-semibold text-rebar">Combined</td>
                         <td className="px-3 py-2.5 font-semibold">{num(sp.totalHours, 1)}</td>
