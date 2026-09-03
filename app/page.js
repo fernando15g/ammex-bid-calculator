@@ -249,6 +249,31 @@ function Calculator() {
           fullyLoadedCost: Number(sp.totalCost.toFixed(2)),
           burdenedLaborCost: Number(e.directLabor.toFixed(2)),
           rebarRevenue: Number(d.bid.toFixed(2)), // PURE placement revenue (placement rate × lbs) — no travel
+          // Per-line specialty detail for the Line Items DB (lets the OS break down by type).
+          specialtyLineItems: hasSpecialty
+            ? v.specialtyLines.map((l) => {
+                const r = sp.rows.find((x) => x.id === l.id) || {};
+                const type = l.type;
+                let quantity = 0, unit = "", unitPrice = 0, productivity = "";
+                if (type === "PT Building") {
+                  quantity = Number(l.lbs) || 0;
+                  unit = "PT LBS";
+                  unitPrice = (Number(l.rateCentsPerLb) || 0) / 100; // dollars/lb
+                  productivity = l.prodLbPerMH === "" ? "" : Number(l.prodLbPerMH);
+                } else if (type === "Mesh") {
+                  quantity = Number(l.sqft) || 0;
+                  unit = "SF";
+                  unitPrice = (Number(l.rateCentsPerSqft) || 0) / 100; // dollars/sqft
+                  productivity = l.prodSqftPerMH === "" ? "" : Number(l.prodSqftPerMH);
+                } else if (type === "PT Bridge") {
+                  quantity = Number(l.hours) || 0;
+                  unit = "HRS";
+                  unitPrice = Number(l.ratePerHour) || 0; // dollars/hr
+                  productivity = ""; // no productivity basis for PT Bridge
+                }
+                return { type, quantity, unit, unitPrice, productivity };
+              })
+            : [],
           specialtyRevenue: Number(sp.specRevenue.toFixed(2)),
           specialtyCost: Number(sp.specCost.toFixed(2)),
           specialtyHours: Number(sp.specHours.toFixed(2)),

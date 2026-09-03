@@ -12,6 +12,7 @@
  */
 
 const NOTION_API = "https://api.notion.com/v1/pages";
+const LINE_ITEMS_DB = "3999aeba538380ae90b7f9f5da7365b9";
 const NOTION_VERSION = "2022-06-28";
 
 // Helpers to shape values into Notion's property format.
@@ -71,7 +72,7 @@ export async function POST(request) {
     // assumptions used on this bid
     burdenPct, toolsPct, contingencyPct, mobilizationHrs, targetMarginPct,
     // specialty scope
-    rebarRevenue, specialtyRevenue, specialtyCost, specialtyHours, specialtyTypes,
+    rebarRevenue, specialtyRevenue, specialtyCost, specialtyHours, specialtyTypes, specialtyLineItems,
   } = body || {};
 
   if (!projectName || String(projectName).trim() === "") {
@@ -155,8 +156,52 @@ export async function POST(request) {
       );
     }
 
+    // --- Write per-line specialty rows into the Line Items DB (for OS breakdown) ---
+    // The bid page now exists (data.id); relate each line to it. Best-effort: a line
+    // failure is reported but does not fail the whole save (the bid + aggregates are saved).
+    let lineItemsWritten = 0;
+    const lineItemErrors = [];
+    if (Array.isArray(specialtyLineItems) && specialtyLineItems.length > 0 && data.id) {
+      for (const li of specialtyLineItems) {
+        const props = {
+          "Description": { title: [{ text: { content: String(li.type || "") } }] },
+          "Bid": { relation: [{ id: data.id }] },
+          "Specialty Type": { select: { name: String(li.type) } },
+          "Unit": { select: { name: String(li.unit) } },
+          "Quantity": { number: Number.isFinite(Number(li.quantity)) ? Number(li.quantity) : 0 },
+          "Unit Price": { number: Number.isFinite(Number(li.unitPrice)) ? Number(li.unitPrice) : 0 },
+          "Line Type": { select: { name: "Standard" } },
+          "Status": { select: { name: "Proposed" } },
+        };
+        // Productivity is optional (blank for PT Bridge)
+        if (li.productivity !== "" && li.productivity != null && Number.isFinite(Number(li.productivity))) {
+          props["Productivity"] = { number: Number(li.productivity) };
+        }
+        try {
+          const liRes = await fetch(NOTION_API, {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${token}`,
+              "Content-Type": "application/json",
+              "Notion-Version": NOTION_VERSION,
+            },
+            body: JSON.stringify({ parent: { database_id: LINE_ITEMS_DB }, properties: props }),
+          });
+          if (liRes.ok) lineItemsWritten += 1;
+          else {
+            const liErr = await liRes.json().catch(() => ({}));
+            lineItemErrors.push(`${li.type}: ${liErr?.message || liRes.status}`);
+          }
+        } catch (e) {
+          lineItemErrors.push(`${li.type}: request failed`);
+        }
+      }
+    }
+
     return Response.json({
       ok: true, id: data.id, url: data.url,
+      lineItemsWritten,
+      ...(lineItemErrors.length ? { lineItemErrors } : {}),
       ...(wantDebug ? { _debug: {
         received: { gc: body?.gc, cityCounty: body?.cityCounty, fabricator: body?.fabricator, projectType: body?.projectType },
         sentGC: properties["GC"],
