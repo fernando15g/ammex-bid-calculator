@@ -417,7 +417,7 @@ function Calculator() {
             </label>
             {v.otOn && (
               <div className="mt-3 space-y-2.5">
-                {/* Hours per week -> derives OT % */}
+                {/* Hours per week is the primary input -> derives OT % */}
                 <div className="flex items-center gap-2.5">
                   <label className="w-40 text-[11px] font-semibold uppercase tracking-wide text-slate2">Planned hrs/week per person</label>
                   <input
@@ -433,25 +433,23 @@ function Calculator() {
                   />
                   <span className="text-[12px] text-slate2">= <span className="tnum font-semibold text-gunmetal">{Math.round((v.otPct || 0) * 100)}%</span> OT</span>
                 </div>
-                {/* OT % directly -> back-fills hrs/week */}
-                <div className="flex items-center gap-2.5">
-                  <label className="w-40 text-[11px] font-semibold uppercase tracking-wide text-slate2">…or set OT % directly</label>
-                  <select
-                    value={String(v.otPct)}
-                    onChange={(ev) => {
-                      const p = Number(ev.target.value);
-                      set("otPct")(p);
-                      // back-fill hrs/week: hrs = 40 / (1 - p)
-                      set("otHoursPerWeek")(p < 1 ? Math.round((40 / (1 - p)) * 10) / 10 : v.otHoursPerWeek);
-                    }}
-                    className="w-24 rounded-md border border-line bg-white px-3 py-2 text-sm tnum text-gunmetal outline-none focus:border-rebar"
-                  >
-                    {[0.05, 0.10, 0.15, 0.20, 0.25, 0.30].map((p) => (
-                      <option key={p} value={p}>{Math.round(p * 100)}%</option>
-                    ))}
-                  </select>
-                  <span className="text-[12px] text-slate2/60">≈ {(40 / (1 - (v.otPct || 0))).toFixed(0)} hrs/week</span>
-                </div>
+                {/* Optional: set OT % directly, tucked away so it can't fight the hrs input */}
+                <details>
+                  <summary className="cursor-pointer text-[11px] font-semibold text-slate2/70 hover:text-rebar">Set OT % directly instead</summary>
+                  <div className="mt-2 flex items-center gap-2.5">
+                    <input
+                      type="number" min="0" max="60" step="any" inputMode="decimal"
+                      value={Math.round((v.otPct || 0) * 1000) / 10}
+                      onChange={(ev) => {
+                        const p = ev.target.value === "" ? 0 : Number(ev.target.value) / 100;
+                        set("otPct")(p);
+                        set("otHoursPerWeek")(p > 0 && p < 1 ? Math.round((40 / (1 - p)) * 10) / 10 : v.otHoursPerWeek);
+                      }}
+                      className="w-24 rounded-md border border-line bg-white px-3 py-2 text-sm tnum text-gunmetal outline-none focus:border-rebar"
+                    />
+                    <span className="text-[12px] text-slate2/60">% OT ≈ {(40 / (1 - Math.min(v.otPct || 0, 0.99))).toFixed(0)} hrs/week</span>
+                  </div>
+                </details>
                 {/* Output */}
                 <div className="pt-1 text-[12px] text-slate2">
                   Adds <span className="tnum font-semibold text-rebar">+{cents(e.otCentsPerLb)}/lb</span> to the bid
