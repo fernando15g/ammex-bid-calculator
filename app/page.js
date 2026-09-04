@@ -94,7 +94,7 @@ function Calculator() {
       hotelTaxPct: 0.125, hotelNightsBasis: 5, fuelMiles: "", fuelTrips: "",
       fuelMPG: 18, fuelPerGal: "", fuelCostManual: "", subsistenceRate: 6,
       subsistenceInLabor: false, travelMarkupOn: true, travelMarkupPct: 0.12, travelAddToBid: false,
-      otOn: false, otPct: 0.10,
+      otOn: false, otPct: 0.10, otHoursPerWeek: 44,
     }));
     setBidOverride("");
   }
@@ -162,6 +162,14 @@ function Calculator() {
     [v.specialtyOn, v.specialtyLines, i, d.bid, e.totalCost, e.totalMH]
   );
   const hasSpecialty = v.specialtyOn && v.specialtyLines.length > 0;
+
+  // Combined (rebar + specialty) OT totals for Notion display on the OS.
+  const otPctActive = v.otOn ? (v.otPct || 0) : 0;
+  const rebarOTHours = v.otOn ? e.fieldMH * otPctActive : 0;
+  const specialtyOTHours = v.otOn && hasSpecialty ? sp.rows.reduce((a, r) => a + (r.hours || 0) * otPctActive, 0) : 0;
+  const otHoursTotal = rebarOTHours + specialtyOTHours;
+  const specialtyOTPremiumTotal = v.otOn && hasSpecialty ? sp.rows.reduce((a, r) => a + (r.otPremium || 0), 0) : 0;
+  const otPremiumTotal = (v.otOn ? e.otPremium : 0) + specialtyOTPremiumTotal;
 
   const toggleLine = (t) => setV((s) => {
     const has = s.specialtyLines.some((l) => l.type === t);
@@ -288,6 +296,8 @@ function Calculator() {
           // Overtime — write blanks/zeros when off so historical rows stay comparable.
           otPct: v.otOn ? (v.otPct || 0) : "",
           otCentsPerLb: v.otOn ? e.otCentsPerLb : 0,
+          otHoursTotal: v.otOn ? Number(otHoursTotal.toFixed(1)) : 0,
+          otPremiumTotal: v.otOn ? Number(otPremiumTotal.toFixed(2)) : 0,
         }),
       });
       const data = await res.json();
@@ -406,27 +416,53 @@ function Calculator() {
               <span className="text-sm font-semibold text-gunmetal">Anticipate overtime on this bid</span>
             </label>
             {v.otOn && (
-              <div className="mt-3 flex flex-wrap items-center gap-3">
-                <label className="text-[11px] font-semibold uppercase tracking-wide text-slate2">Share of field hours at OT</label>
-                <select
-                  value={String(v.otPct)}
-                  onChange={(ev) => set("otPct")(Number(ev.target.value))}
-                  className="rounded-md border border-line bg-white px-3 py-2 text-sm tnum text-gunmetal outline-none focus:border-rebar"
-                >
-                  {[0.05, 0.10, 0.15, 0.20, 0.25].map((p) => (
-                    <option key={p} value={p}>{Math.round(p * 100)}%</option>
-                  ))}
-                </select>
-                <span className="text-[12px] text-slate2">
+              <div className="mt-3 space-y-2.5">
+                {/* Hours per week -> derives OT % */}
+                <div className="flex items-center gap-2.5">
+                  <label className="w-40 text-[11px] font-semibold uppercase tracking-wide text-slate2">Planned hrs/week per person</label>
+                  <input
+                    type="number" min="40" step="any" inputMode="decimal"
+                    value={v.otHoursPerWeek}
+                    onChange={(ev) => {
+                      const hrs = ev.target.value;
+                      set("otHoursPerWeek")(hrs);
+                      const h = Number(hrs);
+                      if (h >= 40 && h > 0) set("otPct")(Math.round(((h - 40) / h) * 1000) / 1000);
+                    }}
+                    className="w-24 rounded-md border border-line bg-white px-3 py-2 text-sm tnum text-gunmetal outline-none focus:border-rebar"
+                  />
+                  <span className="text-[12px] text-slate2">= <span className="tnum font-semibold text-gunmetal">{Math.round((v.otPct || 0) * 100)}%</span> OT</span>
+                </div>
+                {/* OT % directly -> back-fills hrs/week */}
+                <div className="flex items-center gap-2.5">
+                  <label className="w-40 text-[11px] font-semibold uppercase tracking-wide text-slate2">…or set OT % directly</label>
+                  <select
+                    value={String(v.otPct)}
+                    onChange={(ev) => {
+                      const p = Number(ev.target.value);
+                      set("otPct")(p);
+                      // back-fill hrs/week: hrs = 40 / (1 - p)
+                      set("otHoursPerWeek")(p < 1 ? Math.round((40 / (1 - p)) * 10) / 10 : v.otHoursPerWeek);
+                    }}
+                    className="w-24 rounded-md border border-line bg-white px-3 py-2 text-sm tnum text-gunmetal outline-none focus:border-rebar"
+                  >
+                    {[0.05, 0.10, 0.15, 0.20, 0.25, 0.30].map((p) => (
+                      <option key={p} value={p}>{Math.round(p * 100)}%</option>
+                    ))}
+                  </select>
+                  <span className="text-[12px] text-slate2/60">≈ {(40 / (1 - (v.otPct || 0))).toFixed(0)} hrs/week</span>
+                </div>
+                {/* Output */}
+                <div className="pt-1 text-[12px] text-slate2">
                   Adds <span className="tnum font-semibold text-rebar">+{cents(e.otCentsPerLb)}/lb</span> to the bid
                   <span className="text-slate2/60"> · OT premium {usd(e.otPremium)}</span>
-                </span>
+                </div>
+                <p className="text-[11px] leading-snug text-slate2/70">
+                  ≈ <span className="tnum font-semibold text-gunmetal">{num(e.fieldMH * (v.otPct || 0), 0)}</span> OT hours across the job
+                  ({num((e.fieldMH * (v.otPct || 0)) / (Number(i.crewSize) || 1), 0)} per person on a {num(i.crewSize,0)}-man crew).
+                  Same field hours — a share worked at time-and-a-half. Only the premium (the extra half) is added to cost.
+                </p>
               </div>
-            )}
-            {v.otOn && (
-              <p className="mt-2 text-[11px] leading-snug text-slate2/70">
-                {Math.round((v.otPct || 0) * 100)}% of placement hours worked at time-and-a-half. Only the premium (the extra half) is added to labor cost, so it flows through tools, contingency, and your margin like any other labor.
-              </p>
             )}
           </div>
 
