@@ -92,7 +92,7 @@ function Calculator() {
       // reset travel inputs to defaults
       travelOn: false, hotelRooms: "", hotelNightlyRate: "", hotelNights: "",
       hotelTaxPct: 0.125, hotelNightsBasis: 5, fuelMiles: "", fuelTrips: "",
-      fuelMPG: 18, fuelPerGal: "", fuelCostManual: "", subsistenceRate: 6,
+      fuelMPG: 18, fuelPerGal: "", fuelCostManual: "", subsistenceRate: 4,
       subsistenceInLabor: false, travelMarkupOn: true, travelMarkupPct: 0.12, travelAddToBid: false,
       otOn: false, otPct: 0.10, otHoursPerWeek: 44,
     }));
