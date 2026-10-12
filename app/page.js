@@ -491,9 +491,12 @@ function Calculator() {
           {v.travelOn && (
             <div className="space-y-5 border-t border-line p-4">
               {/* HOTEL */}
-              <div>
-                <div className="mb-2 text-[11px] font-semibold uppercase tracking-eyebrow text-slate2">Hotel</div>
-                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+              <details open={travel.hotelCost > 0} className="group">
+                <summary className="flex cursor-pointer items-center justify-between">
+                  <span className="text-[11px] font-semibold uppercase tracking-eyebrow text-slate2 group-hover:text-rebar">Hotel</span>
+                  <span className="text-[11px] text-slate2">{travel.hotelCost > 0 ? usd(travel.hotelCost) : "—"}</span>
+                </summary>
+                <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3">
                   <Field label="Rooms" value={v.hotelRooms} step="any" onChange={set("hotelRooms")} />
                   <Field label="Nightly rate" value={v.hotelNightlyRate} step="any" prefix="$" onChange={set("hotelNightlyRate")} />
                   <Field label="Nights" value={v.hotelNights} step="any" onChange={set("hotelNights")}
@@ -515,13 +518,15 @@ function Calculator() {
                     </div>
                   </label>
                 </div>
-                <div className="mt-1.5 text-[11px] text-slate2">Hotel cost: <span className="tnum font-semibold text-gunmetal">{usd(travel.hotelCost)}</span></div>
-              </div>
+              </details>
 
               {/* FUEL */}
-              <div className="border-t border-line pt-4">
-                <div className="mb-2 text-[11px] font-semibold uppercase tracking-eyebrow text-slate2">Fuel</div>
-                <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+              <details open={travel.fuelCost > 0} className="group border-t border-line pt-4">
+                <summary className="flex cursor-pointer items-center justify-between">
+                  <span className="text-[11px] font-semibold uppercase tracking-eyebrow text-slate2 group-hover:text-rebar">Fuel</span>
+                  <span className="text-[11px] text-slate2">{travel.fuelCost > 0 ? usd(travel.fuelCost) : "—"}</span>
+                </summary>
+                <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
                   <Field label="Round-trip mi" value={v.fuelMiles} step="any" onChange={set("fuelMiles")} />
                   <div>
                     <Field label="Trips" value={v.fuelTrips} step="any" onChange={set("fuelTrips")} />
@@ -548,22 +553,23 @@ function Calculator() {
                       onChange={set("fuelCostManual")} hint="Overrides the mileage calc. Clear to go back to mileage." />
                   </div>
                 </details>
-              </div>
+              </details>
 
               {/* SUBSISTENCE */}
-              <div className="border-t border-line pt-4">
-                <div className="mb-2 text-[11px] font-semibold uppercase tracking-eyebrow text-slate2">Subsistence</div>
-                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-                  <Field label="Workers" value={i.crewSize} step="any" onChange={set("crewSize")} hint="From crew size" />
-                  <Field label="Crew days" value={num(e.crewDays, 1)} readOnly hint="Auto from the estimate" />
-                  <Field label="Rate / worker / day" value={v.subsistenceRate} step="any" prefix="$" onChange={set("subsistenceRate")} />
+              <details open={travel.subsistenceCost > 0} className="group border-t border-line pt-4">
+                <summary className="flex cursor-pointer items-center justify-between">
+                  <span className="text-[11px] font-semibold uppercase tracking-eyebrow text-slate2 group-hover:text-rebar">Subsistence</span>
+                  <span className="text-[11px] text-slate2">{travel.subsistenceCost > 0 ? usd(travel.subsistenceCost) : "—"}</span>
+                </summary>
+                <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3">
+                  <Field label="Total man-hours" value={num(e.totalMH, 0)} readOnly hint="On-site hours, auto from the estimate" />
+                  <Field label="Rate / worker / hour" value={v.subsistenceRate} step="any" prefix="$" onChange={set("subsistenceRate")} />
                 </div>
                 <label className="mt-2 flex cursor-pointer items-center gap-2 text-[12px] text-slate2">
                   <input type="checkbox" checked={!!v.subsistenceInLabor} onChange={(ev) => set("subsistenceInLabor")(ev.target.checked)} className="h-3.5 w-3.5 accent-rebar" />
                   Subsistence already included in labor rate (sets to $0)
                 </label>
-                <div className="mt-1.5 text-[11px] text-slate2">Subsistence cost: <span className="tnum font-semibold text-gunmetal">{usd(travel.subsistenceCost)}</span></div>
-              </div>
+              </details>
 
               {/* MARKUP */}
               <div className="border-t border-line pt-4">
