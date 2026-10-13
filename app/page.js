@@ -140,6 +140,20 @@ function Calculator() {
   }, [v.travelOn]); // eslint-disable-line react-hooks/exhaustive-deps
   const dailyFuel = dailyTripFuel(v, e.crewDays);
   const travelFoldsIn = !!v.travelOn && !!v.travelAddToBid;
+  // Initial open-state for the collapsible travel blocks, captured ONCE when the
+  // travel section mounts (v.travelOn). Using refs keeps <details> uncontrolled so
+  // the block won't snap shut while you're mid-edit clearing a value.
+  const hotelOpen0 = useRef(false);
+  const fuelOpen0 = useRef(false);
+  const subOpen0 = useRef(false);
+  useEffect(() => {
+    if (v.travelOn) {
+      hotelOpen0.current = travel.hotelCost > 0;
+      fuelOpen0.current = travel.fuelCost > 0;
+      subOpen0.current = travel.subsistenceCost > 0;
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [v.travelOn]);
   const travelCents = travelFoldsIn ? travel.centsPerLb : 0;
   // The bid rate the user should actually quote = placement active bid + travel add-on,
   // rounded to the nearest quarter-cent (same rule as the base bid) when travel folds in.
@@ -491,7 +505,7 @@ function Calculator() {
           {v.travelOn && (
             <div className="space-y-5 border-t border-line p-4">
               {/* HOTEL */}
-              <details open={travel.hotelCost > 0} className="group">
+              <details key={`hotel-${v.travelOn}`} ref={(el)=>{ if(el && el.dataset.init!=="1"){ el.open = hotelOpen0.current; el.dataset.init="1"; } }} className="group">
                 <summary className="flex cursor-pointer items-center justify-between">
                   <span className="text-[11px] font-semibold uppercase tracking-eyebrow text-slate2 group-hover:text-rebar">Hotel</span>
                   <span className="text-[11px] text-slate2">{travel.hotelCost > 0 ? usd(travel.hotelCost) : "—"}</span>
@@ -521,7 +535,7 @@ function Calculator() {
               </details>
 
               {/* FUEL */}
-              <details open={travel.fuelCost > 0} className="group border-t border-line pt-4">
+              <details key={`fuel-${v.travelOn}`} ref={(el)=>{ if(el && el.dataset.init!=="1"){ el.open = fuelOpen0.current; el.dataset.init="1"; } }} className="group border-t border-line pt-4">
                 <summary className="flex cursor-pointer items-center justify-between">
                   <span className="text-[11px] font-semibold uppercase tracking-eyebrow text-slate2 group-hover:text-rebar">Fuel</span>
                   <span className="text-[11px] text-slate2">{travel.fuelCost > 0 ? usd(travel.fuelCost) : "—"}</span>
@@ -556,7 +570,7 @@ function Calculator() {
               </details>
 
               {/* SUBSISTENCE */}
-              <details open={travel.subsistenceCost > 0} className="group border-t border-line pt-4">
+              <details key={`sub-${v.travelOn}`} ref={(el)=>{ if(el && el.dataset.init!=="1"){ el.open = subOpen0.current; el.dataset.init="1"; } }} className="group border-t border-line pt-4">
                 <summary className="flex cursor-pointer items-center justify-between">
                   <span className="text-[11px] font-semibold uppercase tracking-eyebrow text-slate2 group-hover:text-rebar">Subsistence</span>
                   <span className="text-[11px] text-slate2">{travel.subsistenceCost > 0 ? usd(travel.subsistenceCost) : "—"}</span>
