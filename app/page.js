@@ -139,7 +139,7 @@ function Calculator() {
     }
   }, [v.travelOn]); // eslint-disable-line react-hooks/exhaustive-deps
   const dailyFuel = dailyTripFuel(v, e.crewDays);
-  const travelFoldsIn = !!v.travelOn && !!v.travelAddToBid;
+  const travelFoldsIn = !!v.travelOn && !!v.travelAddToBid && !bidOverridden; // override is the final word — don't add travel on top
   // Initial open-state for the collapsible travel blocks, captured ONCE when the
   // travel section mounts (v.travelOn). Using refs keeps <details> uncontrolled so
   // the block won't snap shut while you're mid-edit clearing a value.
@@ -257,7 +257,7 @@ function Calculator() {
           subsistenceInLabor: v.travelOn ? !!v.subsistenceInLabor : false,
           travelMarkupOn: v.travelOn ? !!v.travelMarkupOn : false,
           travelMarkupPct: v.travelOn ? v.travelMarkupPct : "",
-          travelAddToBid: v.travelOn ? !!v.travelAddToBid : false,
+          travelAddToBid: travelFoldsIn, // true only when travel actually folded into the saved rate (false if overridden)
           hotelCost: v.travelOn ? Number(travel.hotelCost.toFixed(2)) : 0,
           fuelCost: v.travelOn ? Number(travel.fuelCost.toFixed(2)) : 0,
           subsistenceCost: v.travelOn ? Number(travel.subsistenceCost.toFixed(2)) : 0,
@@ -917,6 +917,11 @@ function Calculator() {
 
         {/* 6 — REVERSE BID ANALYSIS */}
         <Section index={7} title="Reverse Bid Analysis" subtitle="Enter a market bid rate to see the margin it implies — and the productivity your crew would need to hit at that price.">
+          {travelFoldsIn && (
+            <div className="mx-4 mt-4 rounded-md border border-warn/30 bg-warn/[0.08] px-3 py-2.5 text-[12px] leading-snug text-gunmetal">
+              <span className="font-semibold text-warn">▲ Placement economics only.</span> Out-of-town (+{cents(effTravelCents)}/lb) is excluded here. Enter your <span className="font-semibold">placement rate {cents(activeCents)}/lb</span> — not the travel-inclusive {cents(bidWithTravelCents)}/lb — or the margin will read high. Travel is handled in the Recommended Bid section.
+            </div>
+          )}
           <div className="grid grid-cols-1 gap-4 p-4 lg:grid-cols-[220px_1fr] lg:items-start">
             <div className="rounded-md border border-line bg-white p-3.5">
               <Field label="Market / target bid rate" value={v.marketCentsPerLb} onChange={set("marketCentsPerLb")} step="any" suffix="¢/lb" hint={`${usd(rev.inputPerLb, 4)}/lb · ${usd(rev.inputPerTon)}/ton`} />
@@ -960,6 +965,11 @@ function Calculator() {
 
         {/* 7 — SENSITIVITY ANALYSIS */}
         <Section index={8} title="Sensitivity Analysis" subtitle="Centered on your Section 2 productivity, ±5 rows. Holds your bid fixed and shows how margin moves as production runs faster or slower. Your planned row is highlighted.">
+          {travelFoldsIn && (
+            <div className="mx-4 mt-4 rounded-md border border-warn/30 bg-warn/[0.08] px-3 py-2.5 text-[12px] leading-snug text-gunmetal">
+              <span className="font-semibold text-warn">▲ Placement economics only.</span> Out-of-town (+{cents(effTravelCents)}/lb) is excluded here. Hold your <span className="font-semibold">placement rate {cents(activeCents)}/lb</span> — not the travel-inclusive {cents(bidWithTravelCents)}/lb — or the margins will read high.
+            </div>
+          )}
           <div className="flex flex-col gap-2 px-4 pt-4 sm:flex-row sm:items-end sm:justify-between">
             <div className="w-full sm:max-w-[260px]">
               <Field
