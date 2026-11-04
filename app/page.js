@@ -40,7 +40,7 @@ function Calculator() {
     setV((s) => {
       const fill = {};
       const d = TRAVEL_DEFAULTS;
-      for (const k of ["hotelTaxPct","hotelNightsBasis","fuelMPG","subsistenceRate","travelMarkupPct"]) {
+      for (const k of ["hotelTaxPct","hotelNightsBasis","fuelMPG","fuelVehicles","subsistenceRate","travelMarkupPct"]) {
         if (s[k] === undefined || s[k] === null || s[k] === "") fill[k] = d[k];
       }
       if (s.travelMarkupOn === undefined) fill.travelMarkupOn = d.travelMarkupOn;
@@ -92,7 +92,7 @@ function Calculator() {
       // reset travel inputs to defaults
       travelOn: false, hotelRooms: "", hotelNightlyRate: "", hotelNights: "",
       hotelTaxPct: 0.125, hotelNightsBasis: 5, fuelMiles: "", fuelTrips: "",
-      fuelMPG: 18, fuelPerGal: "", fuelCostManual: "", subsistenceRate: 4,
+      fuelVehicles: 1, fuelMPG: 18, fuelPerGal: "", fuelCostManual: "", subsistenceRate: 4,
       subsistenceInLabor: false, travelMarkupOn: true, travelMarkupPct: 0.12, travelAddToBid: false,
       otOn: false, otPct: 0.10, otHoursPerWeek: 44,
     }));
@@ -546,10 +546,11 @@ function Calculator() {
                     <Field label="Trips" value={v.fuelTrips} step="any" onChange={set("fuelTrips")} />
                     <span className="mt-1 block text-[11px] leading-snug text-slate2/70">
                       {dailyFuel.cost != null
-                        ? <>Daily: {dailyFuel.trips} trips ≈ <span className="tnum">{usd(dailyFuel.cost)}</span></>
-                        : <>Daily ≈ {dailyFuel.trips} trips (add mi/MPG/$)</>}
+                        ? <>Daily: {dailyFuel.trips} trips/vehicle ≈ <span className="tnum">{usd(dailyFuel.cost)}</span></>
+                        : <>Daily ≈ {dailyFuel.trips} trips/vehicle (add mi/MPG/$)</>}
                     </span>
                   </div>
+                  <Field label="Vehicles" value={v.fuelVehicles} step="1" onChange={set("fuelVehicles")} hint="Trucks making the trip; trips above are per vehicle" />
                   <Field label="MPG" value={v.fuelMPG} step="any" onChange={set("fuelMPG")} />
                   <Field label="$ / gallon" value={v.fuelPerGal} step="any" prefix="$" onChange={set("fuelPerGal")} />
                 </div>
