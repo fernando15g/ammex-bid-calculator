@@ -18,6 +18,7 @@ import {
   computeTravel,
   suggestHotelNights,
   dailyTripFuel,
+  travelPattern,
 } from "@/lib/calc";
 import { usd, num, pct, cents } from "@/lib/format";
 
@@ -40,7 +41,7 @@ function Calculator() {
     setV((s) => {
       const fill = {};
       const d = TRAVEL_DEFAULTS;
-      for (const k of ["hotelTaxPct","hotelNightsBasis","fuelMPG","fuelVehicles","subsistenceRate","travelMarkupPct"]) {
+      for (const k of ["stayWeeks","hotelTaxPct","hotelNightsBasis","fuelMPG","fuelVehicles","subsistenceRate","travelMarkupPct"]) {
         if (s[k] === undefined || s[k] === null || s[k] === "") fill[k] = d[k];
       }
       if (s.travelMarkupOn === undefined) fill.travelMarkupOn = d.travelMarkupOn;
@@ -90,7 +91,7 @@ function Calculator() {
       specialtyOn: false,
       specialtyLines: [],
       // reset travel inputs to defaults
-      travelOn: false, hotelRooms: "", hotelNightlyRate: "", hotelNights: "",
+      travelOn: false, stayWeeks: 0, hotelRooms: "", hotelNightlyRate: "", hotelNights: "",
       hotelTaxPct: 0.125, hotelNightsBasis: 5, fuelMiles: "", fuelTrips: "",
       fuelVehicles: 1, fuelMPG: 18, fuelPerGal: "", fuelCostManual: "", subsistenceRate: 4,
       subsistenceInLabor: false, travelMarkupOn: true, travelMarkupPct: 0.12, travelAddToBid: false,
@@ -132,13 +133,24 @@ function Calculator() {
 
   // Out-of-town (travel) add-on. Own markup, independent of the labor stack.
   const travel = useMemo(() => computeTravel(i, v, e.crewDays), [i, v, e.crewDays]);
-  // Auto-fill hotel nights from the selected week basis the moment travel turns on (no re-click needed).
+  // When travel turns on fresh, initialize the drive/stay split at 0 stay-weeks
+  // (all-drive): hotel nights -> 0, fuel trips -> every workday. Stepper and fields
+  // stay editable after. Won't clobber a loaded bid that already has nights.
   useEffect(() => {
     if (v.travelOn && (v.hotelNights === "" || v.hotelNights == null)) {
-      setV((s) => ({ ...s, hotelNights: suggestHotelNights(e.crewDays, s.hotelNightsBasis || 5) }));
+      setV((s) => {
+        const p = travelPattern(e.crewDays, 0, s.hotelNightsBasis || 5);
+        return { ...s, stayWeeks: 0, hotelNights: p.hotelNights, fuelTrips: p.fuelTrips };
+      });
     }
   }, [v.travelOn]); // eslint-disable-line react-hooks/exhaustive-deps
   const dailyFuel = dailyTripFuel(v, e.crewDays);
+  // Drive/stay split for the Weeks-staying stepper (derives hotel nights + fuel trips).
+  const pat = travelPattern(e.crewDays, v.stayWeeks, v.hotelNightsBasis);
+  const applyStayWeeks = (weeks) => {
+    const p = travelPattern(e.crewDays, weeks, v.hotelNightsBasis);
+    setV((s) => ({ ...s, stayWeeks: p.stayWeeks, hotelNights: p.hotelNights, fuelTrips: p.fuelTrips }));
+  };
   const travelFoldsIn = !!v.travelOn && !!v.travelAddToBid && !bidOverridden; // override is the final word — don't add travel on top
   // Initial open-state for the collapsible travel blocks, captured ONCE when the
   // travel section mounts (v.travelOn). Using refs keeps <details> uncontrolled so
@@ -504,6 +516,25 @@ function Calculator() {
 
           {v.travelOn && (
             <div className="space-y-5 border-t border-line p-4">
+              {/* TRAVEL PATTERN — how many weeks the crew sleeps on-site vs. drives up daily */}
+              <div className="rounded-lg border border-line bg-white/60 p-3">
+                <div className="flex items-center justify-between gap-3">
+                  <span className="text-[11px] font-semibold uppercase tracking-eyebrow text-slate2">Weeks staying overnight</span>
+                  <div className="flex items-center gap-2">
+                    <button type="button" aria-label="Fewer stay weeks"
+                      onClick={() => applyStayWeeks(Number(v.stayWeeks || 0) - 1)}
+                      className="flex h-7 w-7 items-center justify-center rounded-md border border-line bg-white text-base font-semibold text-slate2 hover:border-rebar hover:text-rebar">−</button>
+                    <span className="tnum w-6 text-center text-sm font-bold text-gunmetal">{pat.stayWeeks}</span>
+                    <button type="button" aria-label="More stay weeks"
+                      onClick={() => applyStayWeeks(Number(v.stayWeeks || 0) + 1)}
+                      className="flex h-7 w-7 items-center justify-center rounded-md border border-line bg-white text-base font-semibold text-slate2 hover:border-rebar hover:text-rebar">+</button>
+                  </div>
+                </div>
+                <p className="mt-2 text-[11px] leading-snug text-slate2/80">
+                  Staying <b className="text-gunmetal">{pat.stayWeeks}</b> of {pat.totalWeeks} weeks → <b className="text-gunmetal">{pat.hotelNights}</b> hotel nights · <b className="text-gunmetal">{pat.fuelTrips}</b> trips/vehicle. Driving the other {pat.commuteWeeks}. Sets Nights and Trips below — both still editable.
+                </p>
+              </div>
+
               {/* HOTEL */}
               <details key={`hotel-${v.travelOn}`} ref={(el)=>{ if(el && el.dataset.init!=="1"){ el.open = hotelOpen0.current; el.dataset.init="1"; } }} className="group">
                 <summary className="flex cursor-pointer items-center justify-between">
@@ -514,7 +545,7 @@ function Calculator() {
                   <Field label="Rooms" value={v.hotelRooms} step="any" onChange={set("hotelRooms")} />
                   <Field label="Nightly rate" value={v.hotelNightlyRate} step="any" prefix="$" onChange={set("hotelNightlyRate")} />
                   <Field label="Nights" value={v.hotelNights} step="any" onChange={set("hotelNights")}
-                    hint={`Suggested ${travel.suggestedNights} on a ${v.hotelNightsBasis}-day week`} />
+                    hint={`${pat.stayWeeks} stay-wks × ${Number(v.hotelNightsBasis)===7?7:5} = ${pat.hotelNights} nights`} />
                   <Field label="Hotel tax %" value={pctIn(v.hotelTaxPct)} step="any" suffix="%"
                     onChange={(x) => set("hotelTaxPct")(pctOut(x))} />
                   <label className="block">
@@ -522,7 +553,7 @@ function Calculator() {
                     <div className="flex gap-1.5">
                       {[5, 7].map((b) => (
                         <button key={b} type="button"
-                          onClick={() => { set("hotelNightsBasis")(b); set("hotelNights")(suggestHotelNights(e.crewDays, b)); }}
+                          onClick={() => { set("hotelNightsBasis")(b); set("hotelNights")(travelPattern(e.crewDays, v.stayWeeks, b).hotelNights); }}
                           className={`flex-1 rounded-md border px-2 py-2.5 text-[11px] font-semibold uppercase tracking-wide transition ${
                             Number(v.hotelNightsBasis) === b ? "border-rebar bg-rebar text-white" : "border-line bg-white text-slate2 hover:border-rebar"
                           }`}>
