@@ -46,6 +46,7 @@ function Calculator() {
       }
       if (s.travelMarkupOn === undefined) fill.travelMarkupOn = d.travelMarkupOn;
       if (s.travelAddToBid === undefined) fill.travelAddToBid = d.travelAddToBid;
+      if (s.weeksHelperOn === undefined) fill.weeksHelperOn = d.weeksHelperOn;
       return Object.keys(fill).length ? { ...s, ...fill } : s;
     });
   }, []);
@@ -91,7 +92,7 @@ function Calculator() {
       specialtyOn: false,
       specialtyLines: [],
       // reset travel inputs to defaults
-      travelOn: false, stayWeeks: 0, hotelRooms: "", hotelNightlyRate: "", hotelNights: "",
+      travelOn: false, stayWeeks: 0, weeksHelperOn: true, hotelRooms: "", hotelNightlyRate: "", hotelNights: "",
       hotelTaxPct: 0.125, hotelNightsBasis: 5, fuelMiles: "", fuelTrips: "",
       fuelVehicles: 1, fuelMPG: 18, fuelPerGal: "", fuelCostManual: "", subsistenceRate: 4,
       subsistenceInLabor: false, travelMarkupOn: true, travelMarkupPct: 0.12, travelAddToBid: false,
@@ -139,8 +140,11 @@ function Calculator() {
   useEffect(() => {
     if (v.travelOn && (v.hotelNights === "" || v.hotelNights == null)) {
       setV((s) => {
-        const p = travelPattern(e.crewDays, 0, s.hotelNightsBasis || 5);
-        return { ...s, stayWeeks: 0, hotelNights: p.hotelNights, fuelTrips: p.fuelTrips };
+        if (s.weeksHelperOn) {
+          const p = travelPattern(e.crewDays, 0, s.hotelNightsBasis || 5);
+          return { ...s, stayWeeks: 0, hotelNights: p.hotelNights, fuelTrips: p.fuelTrips };
+        }
+        return { ...s, hotelNights: suggestHotelNights(e.crewDays, s.hotelNightsBasis || 5) };
       });
     }
   }, [v.travelOn]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -150,6 +154,14 @@ function Calculator() {
   const applyStayWeeks = (weeks) => {
     const p = travelPattern(e.crewDays, weeks, v.hotelNightsBasis);
     setV((s) => ({ ...s, stayWeeks: p.stayWeeks, hotelNights: p.hotelNights, fuelTrips: p.fuelTrips }));
+  };
+  const toggleWeeksHelper = (on) => {
+    if (on) {
+      const p = travelPattern(e.crewDays, v.stayWeeks, v.hotelNightsBasis);
+      setV((s) => ({ ...s, weeksHelperOn: true, stayWeeks: p.stayWeeks, hotelNights: p.hotelNights, fuelTrips: p.fuelTrips }));
+    } else {
+      setV((s) => ({ ...s, weeksHelperOn: false }));
+    }
   };
   const travelFoldsIn = !!v.travelOn && !!v.travelAddToBid && !bidOverridden; // override is the final word — don't add travel on top
   // Initial open-state for the collapsible travel blocks, captured ONCE when the
@@ -519,20 +531,29 @@ function Calculator() {
               {/* TRAVEL PATTERN — how many weeks the crew sleeps on-site vs. drives up daily */}
               <div className="rounded-lg border border-line bg-white/60 p-3">
                 <div className="flex items-center justify-between gap-3">
-                  <span className="text-[11px] font-semibold uppercase tracking-eyebrow text-slate2">Weeks staying overnight</span>
-                  <div className="flex items-center gap-2">
-                    <button type="button" aria-label="Fewer stay weeks"
-                      onClick={() => applyStayWeeks(Number(v.stayWeeks || 0) - 1)}
-                      className="flex h-7 w-7 items-center justify-center rounded-md border border-line bg-white text-base font-semibold text-slate2 hover:border-rebar hover:text-rebar">−</button>
-                    <span className="tnum w-6 text-center text-sm font-bold text-gunmetal">{pat.stayWeeks}</span>
-                    <button type="button" aria-label="More stay weeks"
-                      onClick={() => applyStayWeeks(Number(v.stayWeeks || 0) + 1)}
-                      className="flex h-7 w-7 items-center justify-center rounded-md border border-line bg-white text-base font-semibold text-slate2 hover:border-rebar hover:text-rebar">+</button>
-                  </div>
+                  <label className="flex cursor-pointer items-center gap-2">
+                    <input type="checkbox" checked={!!v.weeksHelperOn} onChange={(ev) => toggleWeeksHelper(ev.target.checked)} className="h-4 w-4 accent-rebar" />
+                    <span className="text-[11px] font-semibold uppercase tracking-eyebrow text-slate2">Weeks staying overnight</span>
+                  </label>
+                  {v.weeksHelperOn && (
+                    <div className="flex items-center gap-2">
+                      <button type="button" aria-label="Fewer stay weeks"
+                        onClick={() => applyStayWeeks(Number(v.stayWeeks || 0) - 1)}
+                        className="flex h-7 w-7 items-center justify-center rounded-md border border-line bg-white text-base font-semibold text-slate2 hover:border-rebar hover:text-rebar">−</button>
+                      <span className="tnum w-6 text-center text-sm font-bold text-gunmetal">{pat.stayWeeks}</span>
+                      <button type="button" aria-label="More stay weeks"
+                        onClick={() => applyStayWeeks(Number(v.stayWeeks || 0) + 1)}
+                        className="flex h-7 w-7 items-center justify-center rounded-md border border-line bg-white text-base font-semibold text-slate2 hover:border-rebar hover:text-rebar">+</button>
+                    </div>
+                  )}
                 </div>
-                <p className="mt-2 text-[11px] leading-snug text-slate2/80">
-                  Staying <b className="text-gunmetal">{pat.stayWeeks}</b> of {pat.totalWeeks} weeks → <b className="text-gunmetal">{pat.hotelNights}</b> hotel nights · <b className="text-gunmetal">{pat.fuelTrips}</b> trips/vehicle. Driving the other {pat.commuteWeeks}. Sets Nights and Trips below — both still editable.
-                </p>
+                {v.weeksHelperOn ? (
+                  <p className="mt-2 text-[11px] leading-snug text-slate2/80">
+                    Staying <b className="text-gunmetal">{pat.stayWeeks}</b> of {pat.totalWeeks} weeks → <b className="text-gunmetal">{pat.hotelNights}</b> hotel nights · <b className="text-gunmetal">{pat.fuelTrips}</b> trips/vehicle. Driving the other {pat.commuteWeeks}. Sets Nights and Trips below — both still editable.
+                  </p>
+                ) : (
+                  <p className="mt-2 text-[11px] leading-snug text-slate2/70">Helper off — set Nights and Fuel Trips by hand below.</p>
+                )}
               </div>
 
               {/* HOTEL */}
@@ -545,7 +566,7 @@ function Calculator() {
                   <Field label="Rooms" value={v.hotelRooms} step="any" onChange={set("hotelRooms")} />
                   <Field label="Nightly rate" value={v.hotelNightlyRate} step="any" prefix="$" onChange={set("hotelNightlyRate")} />
                   <Field label="Nights" value={v.hotelNights} step="any" onChange={set("hotelNights")}
-                    hint={`${pat.stayWeeks} stay-wks × ${Number(v.hotelNightsBasis)===7?7:5} = ${pat.hotelNights} nights`} />
+                    hint={v.weeksHelperOn ? `${pat.stayWeeks} stay-wks × ${Number(v.hotelNightsBasis)===7?7:5} = ${pat.hotelNights} nights` : `Suggested ${travel.suggestedNights} on a ${v.hotelNightsBasis}-day week`} />
                   <Field label="Hotel tax %" value={pctIn(v.hotelTaxPct)} step="any" suffix="%"
                     onChange={(x) => set("hotelTaxPct")(pctOut(x))} />
                   <label className="block">
@@ -553,7 +574,7 @@ function Calculator() {
                     <div className="flex gap-1.5">
                       {[5, 7].map((b) => (
                         <button key={b} type="button"
-                          onClick={() => { set("hotelNightsBasis")(b); set("hotelNights")(travelPattern(e.crewDays, v.stayWeeks, b).hotelNights); }}
+                          onClick={() => { set("hotelNightsBasis")(b); set("hotelNights")(v.weeksHelperOn ? travelPattern(e.crewDays, v.stayWeeks, b).hotelNights : suggestHotelNights(e.crewDays, b)); }}
                           className={`flex-1 rounded-md border px-2 py-2.5 text-[11px] font-semibold uppercase tracking-wide transition ${
                             Number(v.hotelNightsBasis) === b ? "border-rebar bg-rebar text-white" : "border-line bg-white text-slate2 hover:border-rebar"
                           }`}>
