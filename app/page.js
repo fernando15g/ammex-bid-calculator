@@ -175,9 +175,11 @@ function Calculator() {
     const head = v.weeksHelperOn
       ? `staying ${pat.stayWeeks} of ${pat.totalWeeks} wks in hotel (${nights} nights) · driving the other ${pat.commuteWeeks} wks (${trips} trips/veh, ${veh} veh)`
       : `manual: ${num(Number(v.hotelRooms) || 0)} rooms × ${nights} nights · ${trips} trips/veh, ${veh} veh`;
+    const totalToGC = travelFoldsIn ? bidWithTravel : bidWithTravel + travel.total;
     return `Out-of-town (${v.weeksHelperOn ? "stepper" : "manual"}): ${head}. `
       + `Hotel ${usd(travel.hotelCost)} · Fuel ${usd(travel.fuelCost)} · Subsistence ${usd(travel.subsistenceCost)} · `
-      + `Travel total ${usd(travel.total)}${mk} → +${cents(travel.centsPerLb)}/lb, ${fold}.`;
+      + `Travel total ${usd(travel.total)}${mk} → +${cents(travel.centsPerLb)}/lb, ${fold}. `
+      + `Bid to GC: ${usd(totalToGC)} @ ${cents(bidWithTravelCents)}/lb${travelFoldsIn ? " (incl. travel)" : " (placement; travel billed separately)"}.`;
   };
   const travelFoldsIn = !!v.travelOn && !!v.travelAddToBid && !bidOverridden; // override is the final word — don't add travel on top
   // Initial open-state for the collapsible travel blocks, captured ONCE when the
@@ -291,6 +293,7 @@ function Calculator() {
           hotelNightsBasis: v.travelOn ? v.hotelNightsBasis : "",
           fuelMiles: v.travelOn ? v.fuelMiles : "",
           fuelTrips: v.travelOn ? v.fuelTrips : "",
+          fuelVehicles: v.travelOn ? v.fuelVehicles : "",
           fuelMPG: v.travelOn ? v.fuelMPG : "",
           fuelPerGal: v.travelOn ? v.fuelPerGal : "",
           subsistenceRate: v.travelOn ? v.subsistenceRate : "",
@@ -386,7 +389,7 @@ function Calculator() {
       `Fully-loaded cost: ${usd(e.totalCost)}`,
       ``,
       `FINAL BID: ${usd(d.bid)}`,
-      `Bid rate: ${cents(bidWithTravelCents)}/lb${travelFoldsIn ? ` (incl. ${cents(travelCents)} travel)` : ""}  •  ${usd(d.perTon)}/ton`,
+      `Bid rate: ${cents(bidWithTravelCents)}/lb${travelFoldsIn ? " all-in (incl. travel)" : `  •  ${usd(d.perTon)}/ton`}`,
       v.travelOn ? `Out-of-town: ${usd(travel.total)} → +${cents(travel.centsPerLb)}/lb${travelFoldsIn ? " (in bid)" : " (not in bid)"}` : null,
       `Operating profit: ${usd(d.grossProfit)}`,
       `Operating margin: ${pct(d.grossMargin)}`,
@@ -699,6 +702,17 @@ function Calculator() {
                       : <>Not in bid rate — placement stays {cents(activeCents)}/lb</>}
                   </span>
                 </div>
+                <div className="mt-3 rounded-lg border border-submit bg-submitLite px-3 py-2.5">
+                  <div className="flex items-baseline justify-between gap-3">
+                    <span className="eyebrow text-[10px] text-submit">Bid to the GC — what you submit</span>
+                    <span className="tnum text-sm font-bold text-submit">{cents(bidWithTravelCents)}/lb</span>
+                  </div>
+                  <div className="mt-1 tnum text-[12px] text-submit/80">
+                    {travelFoldsIn
+                      ? <>{usd(bidWithTravel)} total · includes +{cents(effTravelCents)}/lb out-of-town</>
+                      : <>{usd(bidWithTravel)} placement + {usd(travel.total)} out-of-town billed separately = <span className="font-semibold">{usd(bidWithTravel + travel.total)}</span> to the GC</>}
+                  </div>
+                </div>
                 <p className="mt-2 text-[11px] leading-snug text-slate2/70">
                   Operating margin stays a pure placement figure — travel is a separately-marked-up pass-through and is tracked in its own columns, not blended into margin.
                 </p>
@@ -930,7 +944,7 @@ function Calculator() {
                 <div className="tnum font-display text-5xl font-bold leading-none text-white sm:text-6xl">{usd(bidWithTravel)}</div>
                 <div className="mt-1 text-[11px] italic text-white/40">also known as Contract Value</div>
                 {travelFoldsIn && (
-                  <div className="mt-1 text-[11px] font-semibold text-rebarLite">includes +{cents(travelCents)}/lb out-of-town ({usd(travel.total)})</div>
+                  <div className="mt-1 text-[11px] font-semibold text-rebarLite">includes +{cents(effTravelCents)}/lb out-of-town in the rate ({usd(travel.total)} cost, ¼¢ rounded up)</div>
                 )}
                 <div className="mt-2 text-sm text-white/60">
                   {num(i.weightLb)} lb · {num(e.weightTons, 2)} tons · {num(e.totalMH, 1)} labor hrs
@@ -1114,11 +1128,20 @@ function Calculator() {
               <SummaryRow k="Productivity" val={`${num(i.outputLbPerMH)} lb/MH`} />
               <SummaryRow k="Labor hours" val={`${num(e.totalMH, 1)} MH · ${num(e.crewDays, 1)} crew days`} />
               <SummaryRow k="Fully-loaded cost" val={usd(e.totalCost)} />
-              <SummaryRow k={bidOverridden ? "Final bid" : "Recommended bid"} val={usd(d.bid)} strong />
-              <SummaryRow k="Bid rate" val={`${cents(bidWithTravelCents)}/lb · ${usd(d.perTon)}/ton`} />
-              {v.travelOn && <SummaryRow k="Out-of-town" val={`${usd(travel.total)} · +${cents(travel.centsPerLb)}/lb${travelFoldsIn ? " (in bid)" : " (separate)"}`} />}
-              <SummaryRow k="Operating profit" val={usd(d.grossProfit)} />
-              <SummaryRow k="Operating margin" val={pct(d.grossMargin)} last />
+              {travelFoldsIn ? (
+                <>
+                  <SummaryRow k="Placement (work)" val={`${usd(d.bid)} · ${cents(activeCents)}/lb · ${usd(d.perTon)}/ton`} />
+                  <SummaryRow k="Out-of-town" val={`${usd(travel.total)} · +${cents(travel.centsPerLb)}/lb cost`} />
+                  <SummaryRow k="Bid to GC (all-in)" val={`${usd(bidWithTravel)} · ${cents(bidWithTravelCents)}/lb`} strong />
+                </>
+              ) : (
+                <>
+                  <SummaryRow k={bidOverridden ? "Final bid" : "Recommended bid"} val={`${usd(d.bid)} · ${cents(activeCents)}/lb · ${usd(d.perTon)}/ton`} strong />
+                  {v.travelOn && <SummaryRow k="Out-of-town" val={`${usd(travel.total)} · +${cents(travel.centsPerLb)}/lb (billed separately)`} />}
+                </>
+              )}
+              <SummaryRow k={travelFoldsIn ? "Operating profit (placement)" : "Operating profit"} val={usd(d.grossProfit)} />
+              <SummaryRow k={travelFoldsIn ? "Operating margin (placement)" : "Operating margin"} val={pct(d.grossMargin)} last />
             </div>
             <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:items-center">
               <button

@@ -16,6 +16,8 @@ module.exports = {
         warn: "#B45309",
         bad: "#B91C1C",
         line: "#D8D4CB",
+        submit: "#1D4ED8", // blue — the rate/total you submit to the GC
+        submitLite: "#DBEAFE",
       },
       fontFamily: {
         display: ["var(--font-oswald)", "system-ui", "sans-serif"],
