@@ -163,6 +163,22 @@ function Calculator() {
       setV((s) => ({ ...s, weeksHelperOn: false }));
     }
   };
+  // One-line recap of the out-of-town estimate, appended to the saved Notes so the
+  // OS shows what the stepper decided. Uses actual field values (post-edit) for counts.
+  const buildTravelNote = () => {
+    if (!v.travelOn) return "";
+    const veh = Number(v.fuelVehicles) || 1;
+    const trips = Number(v.fuelTrips) || 0;
+    const nights = Number(v.hotelNights) || 0;
+    const mk = v.travelMarkupOn ? ` (+${pct(v.travelMarkupPct, 0)})` : "";
+    const fold = travelFoldsIn ? "in bid" : "separate";
+    const head = v.weeksHelperOn
+      ? `staying ${pat.stayWeeks} of ${pat.totalWeeks} wks in hotel (${nights} nights) · driving the other ${pat.commuteWeeks} wks (${trips} trips/veh, ${veh} veh)`
+      : `manual: ${num(Number(v.hotelRooms) || 0)} rooms × ${nights} nights · ${trips} trips/veh, ${veh} veh`;
+    return `Out-of-town (${v.weeksHelperOn ? "stepper" : "manual"}): ${head}. `
+      + `Hotel ${usd(travel.hotelCost)} · Fuel ${usd(travel.fuelCost)} · Subsistence ${usd(travel.subsistenceCost)} · `
+      + `Travel total ${usd(travel.total)}${mk} → +${cents(travel.centsPerLb)}/lb, ${fold}.`;
+  };
   const travelFoldsIn = !!v.travelOn && !!v.travelAddToBid && !bidOverridden; // override is the final word — don't add travel on top
   // Initial open-state for the collapsible travel blocks, captured ONCE when the
   // travel section mounts (v.travelOn). Using refs keeps <details> uncontrolled so
@@ -289,7 +305,7 @@ function Calculator() {
           travelAddOnCents: v.travelOn ? travel.centsPerLb : 0,
           fabricator: v.fabricator,
           projectType: v.projectType,
-          notes: v.notes,
+          notes: [v.notes, buildTravelNote()].filter(Boolean).join("\n\n"),
           // computed from the active bid (what you actually see/save)
           operatingProfit: Number(sp.totalProfit.toFixed(2)),
           operatingMargin: Number(sp.totalMargin.toFixed(4)), // ratio, combined
