@@ -246,6 +246,7 @@ function Calculator() {
   // Save the bid's raw inputs as a new row in the Notion Bid Tracker.
   const [notionStatus, setNotionStatus] = useState("idle"); // idle | saving | saved | error
   const [notionMsg, setNotionMsg] = useState("");
+  const [saveInfo, setSaveInfo] = useState(null); // { written, errors[] } from the last save (specialty line items)
   const [debugOn, setDebugOn] = useState(false); // set window.__ammexDebug=true then save to see payload
 
   useEffect(() => { if (typeof window !== "undefined" && window.__ammexDebug) setDebugOn(true); }, []);
@@ -268,6 +269,7 @@ function Calculator() {
   async function saveToNotion() {
     setNotionStatus("saving");
     setNotionMsg("");
+    setSaveInfo(null);
     try {
       const res = await fetch(`/api/save-to-notion${debugOn ? "?debug=1" : ""}`, {
         method: "POST",
@@ -360,6 +362,9 @@ function Calculator() {
       const data = await res.json();
       if (data.ok) {
         setNotionStatus("saved"); // stays until the next edit (see set())
+        const liErrors = Array.isArray(data.lineItemErrors) ? data.lineItemErrors : [];
+        setSaveInfo({ written: Number(data.lineItemsWritten) || 0, errors: liErrors });
+        if (liErrors.length) console.log("LINE ITEM ERRORS", liErrors);
         if (debugOn && data._debug) { setNotionMsg("DEBUG: " + JSON.stringify(data._debug)); console.log("SAVE DEBUG", data._debug); }
       } else {
         setNotionStatus("error");
@@ -1169,6 +1174,17 @@ function Calculator() {
                   {v.projectName ? `“${v.projectName}” ` : ""}booked at {cents(bidWithTravelCents)}/lb · {usd((hasSpecialty ? sp.totalRevenue : d.bid) + (travelFoldsIn ? travel.total : 0))}
                   {hasSpecialty ? " (rebar + specialty)" : ""}. A new row was created in the Bid Tracker.
                 </span>
+                {saveInfo && hasSpecialty && saveInfo.errors.length === 0 && (
+                  <span className="text-good/90"> · {saveInfo.written} specialty line{saveInfo.written === 1 ? "" : "s"} written to Line Items.</span>
+                )}
+                {saveInfo && saveInfo.errors.length > 0 && (
+                  <div className="mt-2 rounded-md border border-warn/40 bg-warn/[0.10] px-3 py-2 text-[12px] text-warn">
+                    <span className="font-semibold">⚠ {saveInfo.errors.length} specialty line{saveInfo.errors.length === 1 ? "" : "s"} did not reach the Line Items DB</span>
+                    {saveInfo.written > 0 && <span className="text-warn/90"> ({saveInfo.written} did save)</span>}
+                    <span className="text-warn/90">: </span>
+                    <span className="break-words text-warn/90">{saveInfo.errors.join(" · ")}</span>
+                  </div>
+                )}
                 {debugOn && notionMsg && <p className="mt-2 break-all text-[10px] text-slate2/70">{notionMsg}</p>}
               </div>
             )}
