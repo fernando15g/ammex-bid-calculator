@@ -129,11 +129,19 @@ function Calculator() {
   const recommendedCents = e.bidCentsPerLb;
   const roundedCents = roundToQuarterCent(recommendedCents);
   const bidOverridden = bidOverride !== "" && !isNaN(Number(bidOverride));
-  const activeCents = bidOverridden ? Number(bidOverride) : roundedCents;
-  const d = useMemo(() => applyBid(i, e, activeCents), [i, e, activeCents]);
-
   // Out-of-town (travel) add-on. Own markup, independent of the labor stack.
   const travel = useMemo(() => computeTravel(i, v, e.crewDays), [i, v, e.crewDays]);
+  // Is travel part of the quoted rate? (independent of whether you typed an override)
+  const travelInBid = !!v.travelOn && !!v.travelAddToBid;
+  const rawTravelCents = travelInBid ? travel.centsPerLb : 0;
+  // When travel is in the bid and you TYPE a rate, that typed rate is the ALL-IN price
+  // (travel already inside it) -> placement = typed - travel. A recommended rate instead
+  // gets travel added on top later. Clamp placement at 0 if a typed all-in is below travel.
+  const belowTravel = travelInBid && bidOverridden && Number(bidOverride) < rawTravelCents;
+  const activeCents = travelInBid
+    ? (bidOverridden ? Math.max(0, Number(bidOverride) - rawTravelCents) : roundedCents)
+    : (bidOverridden ? Number(bidOverride) : roundedCents);
+  const d = useMemo(() => applyBid(i, e, activeCents), [i, e, activeCents]);
   // When travel turns on fresh, initialize the drive/stay split at 0 stay-weeks
   // (all-drive): hotel nights -> 0, fuel trips -> every workday. Stepper and fields
   // stay editable after. Won't clobber a loaded bid that already has nights.
@@ -179,9 +187,9 @@ function Calculator() {
     return `Out-of-town (${v.weeksHelperOn ? "stepper" : "manual"}): ${head}. `
       + `Hotel ${usd(travel.hotelCost)} · Fuel ${usd(travel.fuelCost)} · Subsistence ${usd(travel.subsistenceCost)} · `
       + `Travel total ${usd(travel.total)}${mk} → +${cents(travel.centsPerLb)}/lb, ${fold}. `
-      + `Bid to GC: ${usd(totalToGC)} @ ${cents(bidWithTravelCents)}/lb${travelFoldsIn ? " (incl. travel)" : " (placement; travel billed separately)"}.`;
+      + `Bid to GC: ${usd(totalToGC)} @ ${cents(bidWithTravelCents)}/lb${travelFoldsIn ? ` (${cents(activeCents)} work + ${cents(effTravelCents)} travel = ${cents(bidWithTravelCents)} all-in)` : " (placement; travel billed separately)"}.`;
   };
-  const travelFoldsIn = !!v.travelOn && !!v.travelAddToBid && !bidOverridden; // override is the final word — don't add travel on top
+  const travelFoldsIn = travelInBid; // travel is inside the quoted rate (recommended adds on top; a typed rate is already all-in)
   // Initial open-state for the collapsible travel blocks, captured ONCE when the
   // travel section mounts (v.travelOn). Using refs keeps <details> uncontrolled so
   // the block won't snap shut while you're mid-edit clearing a value.
@@ -196,19 +204,19 @@ function Calculator() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [v.travelOn]);
-  const travelCents = travelFoldsIn ? travel.centsPerLb : 0;
-  // The bid rate the user should actually quote = placement active bid + travel add-on,
-  // rounded to the nearest quarter-cent (same rule as the base bid) when travel folds in.
-  const bidWithTravelCents = travelFoldsIn
-    ? roundToQuarterCent(activeCents + travelCents)
-    : activeCents;
-  // The cents that actually get SAVED as Bid Rate: combined+rounded when folding in, else placement.
+  const travelCents = travelFoldsIn ? rawTravelCents : 0;
+  // All-in quoted rate: a TYPED rate is already the all-in (travel inside it); a RECOMMENDED
+  // rate gets travel added on top and re-rounded to ¼¢.
+  const bidWithTravelCents = !travelFoldsIn
+    ? activeCents
+    : (bidOverridden ? Number(bidOverride) : roundToQuarterCent(activeCents + travelCents));
+  // The cents that actually get SAVED as Bid Rate: the all-in when folding in, else placement.
   const savedBidCents = bidWithTravelCents;
-  // Dollar value of the bid at the (rounded) quoted rate, so hero $ matches the saved Bid Rate.
+  // Dollar value of the bid at the quoted rate, so hero $ matches the saved Bid Rate.
   const bidWithTravel = travelFoldsIn
     ? (savedBidCents / 100) * i.weightLb
     : d.bid;
-  // Effective travel contribution after rounding (so the split always sums to the quoted rate).
+  // Travel portion inside the quoted rate (all-in − placement); always sums to the quote.
   const effTravelCents = travelFoldsIn ? (bidWithTravelCents - activeCents) : 0;
 
   // Specialty scope rollup (labor-only). Rebar side comes from the active bid.
@@ -280,7 +288,7 @@ function Calculator() {
           lbsPerMH: i.outputLbPerMH,
           crewSize: i.crewSize,
           laborRate: i.wageRate,
-          bidRatePerLb: Number((savedBidCents / 100).toFixed(4)), // travel-inclusive (rounded ¼¢) when folded in, else placement
+          bidRatePerLb: Number((savedBidCents / 100).toFixed(4)), // all-in when travel is in the rate (typed rate as-is, or recommended+travel rounded), else placement
           gc: Array.isArray(v.client) ? v.client : (v.client ? [v.client] : []),
           cityCounty: v.cityCounty,
           bidDueDate: v.bidDueDate,
@@ -303,7 +311,7 @@ function Calculator() {
           subsistenceInLabor: v.travelOn ? !!v.subsistenceInLabor : false,
           travelMarkupOn: v.travelOn ? !!v.travelMarkupOn : false,
           travelMarkupPct: v.travelOn ? v.travelMarkupPct : "",
-          travelAddToBid: travelFoldsIn, // true only when travel actually folded into the saved rate (false if overridden)
+          travelAddToBid: travelFoldsIn, // true whenever travel is in the quoted rate (incl. a typed all-in rate)
           hotelCost: v.travelOn ? Number(travel.hotelCost.toFixed(2)) : 0,
           fuelCost: v.travelOn ? Number(travel.fuelCost.toFixed(2)) : 0,
           subsistenceCost: v.travelOn ? Number(travel.subsistenceCost.toFixed(2)) : 0,
@@ -704,7 +712,7 @@ function Calculator() {
                   </button>
                   <span className="tnum text-[12px] text-slate2">
                     {travelFoldsIn
-                      ? <>Bid with travel: <span className="font-semibold text-gunmetal">{cents(bidWithTravelCents)}/lb</span> ({cents(activeCents)} + {cents(effTravelCents)} travel, ¼¢ rounded)</>
+                      ? <><span className="font-semibold text-gunmetal">{cents(activeCents)} work + {cents(effTravelCents)} travel = {cents(bidWithTravelCents)}/lb all-in</span></>
                       : <>Not in bid rate — placement stays {cents(activeCents)}/lb</>}
                   </span>
                 </div>
@@ -992,6 +1000,16 @@ function Calculator() {
               )}
             </div>
           </div>
+          {travelInBid && bidOverridden && !belowTravel && (
+            <div className="border-b border-line bg-submitLite/40 px-4 py-2 text-[11px] text-submit">
+              Your typed rate is the <span className="font-semibold">all-in</span> price — travel is inside it: {cents(activeCents)} work + {cents(effTravelCents)} travel = {cents(bidWithTravelCents)}/lb.
+            </div>
+          )}
+          {belowTravel && (
+            <div className="border-b border-line bg-bad/[0.08] px-4 py-2 text-[11px] text-bad">
+              <span className="font-semibold">▲ Typed rate {cents(Number(bidOverride))}/lb is below the {cents(rawTravelCents)}/lb travel add-on.</span> It doesn’t cover travel — placement is clamped to 0, so profit and margin read as a loss. Raise the rate.
+            </div>
+          )}
 
           {/* Supporting metrics */}
           <div className="grid grid-cols-2 gap-3 p-4 sm:grid-cols-3 lg:grid-cols-4">
