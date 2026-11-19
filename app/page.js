@@ -298,6 +298,7 @@ function Calculator() {
           fuelVehicles: v.travelOn ? v.fuelVehicles : "",
           fuelMPG: v.travelOn ? v.fuelMPG : "",
           fuelPerGal: v.travelOn ? v.fuelPerGal : "",
+          fuelCostManual: v.travelOn ? v.fuelCostManual : "",
           subsistenceRate: v.travelOn ? v.subsistenceRate : "",
           subsistenceInLabor: v.travelOn ? !!v.subsistenceInLabor : false,
           travelMarkupOn: v.travelOn ? !!v.travelMarkupOn : false,

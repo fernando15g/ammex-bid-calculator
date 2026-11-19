@@ -65,7 +65,7 @@ export async function POST(request) {
     projectName, estimatedLbs, lbsPerMH, crewSize, laborRate, bidRatePerLb, notes,
     gc, cityCounty, bidDueDate, submissionDate, fabricator, projectType,
     travelOn, hotelRooms, hotelNightlyRate, hotelNights, hotelTaxPct, hotelNightsBasis,
-    fuelMiles, fuelTrips, fuelVehicles, fuelMPG, fuelPerGal, subsistenceRate, subsistenceInLabor,
+    fuelMiles, fuelTrips, fuelVehicles, fuelMPG, fuelPerGal, fuelCostManual, subsistenceRate, subsistenceInLabor,
     travelMarkupOn, travelMarkupPct, travelAddToBid, hotelCost, fuelCost, subsistenceCost, travelTotal, travelAddOnCents,
     // computed dollars/margin (from the active/rounded bid)
     operatingProfit, operatingMargin, fullyLoadedCost, burdenedLaborCost,
@@ -103,6 +103,7 @@ export async function POST(request) {
     "Fuel Vehicles (calc)": numProp(fuelVehicles),
     "Fuel MPG (calc)": numProp(fuelMPG),
     "Fuel Per Gal (calc)": numProp(fuelPerGal),
+    "Fuel Cost Manual (calc)": { number: fuelCostManual === "" || fuelCostManual == null ? null : Number(fuelCostManual) },
     "Subsistence Rate (calc)": numProp(subsistenceRate),
     "Subsistence In Labor (calc)": boolProp(subsistenceInLabor),
     "Travel Markup On (calc)": boolProp(travelMarkupOn),
